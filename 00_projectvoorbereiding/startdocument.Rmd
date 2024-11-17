@@ -1,0 +1,64 @@
+---
+date: "`r Sys.Date()`"
+title: "Startdocument [naam project]"
+author: "`r Sys.getenv('USER')`"
+output: word_document
+---
+
+## Betrokkenen
+
+Team opdrachtgever:
+
+-   [Naam 1 met email-link](mailto:email@minocw.nl)
+
+Datalab:
+
+-   Contactpersoon: [Naam contactpersoon met e-mail-link](mailto:naamcontactpersoon@minocw.nl)
+
+-   Data-analist: [Naam data-analist met e-mail-link](mailto:naamcontactpersoon@minocw.nl)
+
+## Probleemstelling
+
+Probeer kort het probleem te schetsen waar het datalabproject aan een oplossing gaat bijdragen.
+
+## Doel
+
+*Vul hier het doel van het project in. Probeer dit zo concreet mogelijk te doen.*
+
+Het doel van dit project is meervoudig:
+
+1.  omschrijving doel 1;
+2.  omschrijving doel 2;
+3.  omschrijving deel 3.
+
+## Product
+
+*Geef aan wat je gaat opleveren. Een databestand? Een dashboard? Maak eventueel ook duidelijk wat je expliciet NIET gaat opleveren.*
+
+Na afroding van het project levert het datalab de volgende producten op:
+
+-   product 1
+
+-   product 2
+
+## Haalbaarheid en risico
+
+*Geef aan hoe we het project typeren. Is het een klein, medium of groot project? Wat betekent dit voor de haalbaarheid? Hebben we daar goed zicht op? Wat zijn eventuele risicio's voor de haalbaarheid van dit project?*
+
+Dit project is getypeerd als klein. Zolang zich geen grote technische belemmeringen voordoen is de haalbaarheid van dit project groot.
+
+## Data en privacy
+
+*Sta expliciet stil bij de data die gebruikt gaan worden en of hier pivacygevoelige data bij zitten. Is dat laatste het geval? Geef dan expliciet aan dat de data niet gebackupt worden en na afloop van het project verwijderd zullen worden.*
+
+Voorbeeld: In de gebruikte data kunnen mogelijk privacygevoelige gegevens opgenomen. De data worden geüpload op een door [ODC-Noord](https://www.odc-noord.nl/) beheerde server. Na afloop van de analyses en opleveren van de producten zullen de privacygevoelige data weer verwijderd worden.
+
+De gebruikte scripts blijven wel bewaard en bieden de mogelijkheid om in de toekomst met nieuwe data dezelfde producten op te leveren.
+
+## Planning
+
+*Omschrijf wat de beoogde planning is. Geef ook aan dat wanneer de planning niet gehaald lijkt te worden we de opdrachtgever op de hoogte zullen stellen. Geef ook altijd aan dat we na afloop een evaluatie zullen plannen.*
+
+Afgesproken is om uiterlijk de eerste week van [maand] een Excel- of CSV-bestand op te leveren met de de uitkomsten van de analyse. Mocht dit niet haalbaar blijken te zijn zal de opdrachtgever hiervan op de hoogte worden gebracht.
+
+Na oplevering zal er een evaluatie worden gepland waarin zowel het proces als de opgeleverde producten besproken zullen worden.
