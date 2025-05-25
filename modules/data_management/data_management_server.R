@@ -193,18 +193,14 @@ data_management_server <- function(id, filtered_data, raw_data, current_user, re
             paginate = list(
               first = "Eerste",
               last = "Laatste",
-              next = "Volgende", 
+              next = "Volgende",
               previous = "Vorige"
             ),
             zeroRecords = "Geen zaken gevonden"
           )
         ),
         class = "table table-striped table-hover"
-      ) %>%
-        DT::formatStyle(
-          columns = 1:ncol(display_data),
-          cursor = "pointer"
-        )
+      )
       
     }, server = TRUE)
     
@@ -235,7 +231,8 @@ data_management_server <- function(id, filtered_data, raw_data, current_user, re
     
     # Clear selection
     observeEvent(input$btn_clear_selection, {
-      DT::dataTableProxy("zaken_table") %>% DT::selectRows(NULL)
+      proxy <- DT::dataTableProxy("zaken_table")
+      DT::selectRows(proxy, NULL)
       selected_rows(numeric(0))
     })
     
@@ -387,117 +384,23 @@ data_management_server <- function(id, filtered_data, raw_data, current_user, re
       # Generate form content
       form_content <- generate_case_form(mode = "create")
       
-      # Update modal content
-      removeUI(selector = paste0("#", session$ns("case_form_content"), " > *"))
-      insertUI(
-        selector = paste0("#", session$ns("case_form_content")),
-        ui = form_content
-      )
-      
-      # Update modal title
-      updateTabsetPanel(session, "modal_case_form", 
-                        selected = list(title = "Nieuwe Zaak Toevoegen"))
-      
-      # Show modal
-      toggleModal(session, "modal_case_form", toggle = "open")
+      # Show notification for now (modals not implemented yet)
+      show_notification("Nieuwe zaak formulier wordt binnenkort toegevoegd", type = "message")
     })
-    
-    # Edit case (double click or edit button)
-    edit_case <- function(row_index) {
-      data <- filtered_data()
-      if (is.null(data) || row_index > nrow(data)) return()
-      
-      case_data <- data[row_index, ]
-      form_mode("edit")
-      current_case(case_data)
-      
-      # Generate form content with data
-      form_content <- generate_case_form(case_data, mode = "edit")
-      
-      # Update modal content
-      removeUI(selector = paste0("#", session$ns("case_form_content"), " > *"))
-      insertUI(
-        selector = paste0("#", session$ns("case_form_content")),
-        ui = form_content
-      )
-      
-      # Show modal
-      toggleModal(session, "modal_case_form", toggle = "open")
-    }
     
     # Double click to edit
     observeEvent(input$zaken_table_cell_clicked, {
       if (!is.null(input$zaken_table_cell_clicked$row)) {
-        edit_case(input$zaken_table_cell_clicked$row)
+        show_notification("Zaak bewerken wordt binnenkort toegevoegd", type = "message")
       }
     })
     
     # ========================================================================
-    # SAVE CASE
+    # SAVE CASE (placeholder)
     # ========================================================================
     
     observeEvent(input$btn_save_case, {
-      
-      # Validate required fields
-      if (is.null(input$form_zaak_id) || input$form_zaak_id == "") {
-        show_notification("Zaak ID is verplicht", type = "warning")
-        return()
-      }
-      
-      if (is.null(input$form_omschrijving) || input$form_omschrijving == "") {
-        show_notification("Omschrijving is verplicht", type = "warning")
-        return()
-      }
-      
-      # Collect form data
-      form_data <- list(
-        zaak_id = input$form_zaak_id,
-        datum_aanmaak = input$form_datum_aanmaak,
-        omschrijving = input$form_omschrijving,
-        type_dienst = if (input$form_type_dienst == "") NULL else input$form_type_dienst,
-        rechtsgebied = if (input$form_rechtsgebied == "") NULL else input$form_rechtsgebied,
-        status_zaak = if (input$form_status_zaak == "") "Open" else input$form_status_zaak,
-        aanvragende_directie = input$form_aanvragende_directie,
-        advocaat = input$form_advocaat,
-        adv_kantoor = input$form_adv_kantoor,
-        la_budget_wjz = input$form_la_budget_wjz,
-        budget_andere_directie = input$form_budget_andere_directie,
-        financieel_risico = input$form_financieel_risico,
-        opmerkingen = input$form_opmerkingen
-      )
-      
-      # Save to database
-      tryCatch({
-        
-        if (form_mode() == "create") {
-          # Add new case
-          voeg_zaak_toe(form_data, current_user())
-          cli_alert_success("New case created: {form_data$zaak_id}")
-          show_notification("Nieuwe zaak succesvol toegevoegd", type = "message")
-          
-        } else if (form_mode() == "edit") {
-          # Update existing case
-          update_zaak(form_data$zaak_id, form_data, current_user())
-          cli_alert_success("Case updated: {form_data$zaak_id}")
-          show_notification("Zaak succesvol bijgewerkt", type = "message")
-        }
-        
-        # Trigger data refresh
-        refresh_trigger()
-        data_changed(data_changed() + 1)
-        
-        # Close modal
-        toggleModal(session, "modal_case_form", toggle = "close")
-        
-      }, error = function(e) {
-        cli_alert_danger("Error saving case: {e$message}")
-        show_notification("Fout bij opslaan van zaak", type = "warning")
-      })
-    })
-    
-    # Cancel form
-    observeEvent(input$btn_cancel_form, {
-      toggleModal(session, "modal_case_form", toggle = "close")
+      show_notification("Opslaan functionaliteit wordt binnenkort toegevoegd", type = "message")
     })
     
     # ========================================================================

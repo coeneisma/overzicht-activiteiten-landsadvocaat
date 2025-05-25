@@ -286,8 +286,8 @@ source("modules/filters/filters_ui.R")
 source("modules/filters/filters_server.R")
 
 # Data management module
-# source("modules/data_management/data_management_ui.R") 
-# source("modules/data_management/data_management_server.R")
+source("modules/data_management/data_management_ui.R")
+source("modules/data_management/data_management_server.R")
 
 # Analytics module
 # source("modules/analytics/analytics_ui.R")

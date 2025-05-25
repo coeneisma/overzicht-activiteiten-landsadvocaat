@@ -129,10 +129,9 @@ login_server <- function(id) {
           updateTextInput(session, "wachtwoord", value = "")
           
           # Auto-hide error after 4 seconds
-          invalidateLater(4000, session)
-          observe({
+          later::later(function() {
             login_failed(FALSE)
-          }, priority = -1)
+          }, delay = 4)
           
           # Show notification
           show_notification("Inloggen mislukt. Controleer uw gegevens.", type = "warning")
@@ -146,10 +145,9 @@ login_server <- function(id) {
         show_notification("Er is een fout opgetreden. Probeer opnieuw.", type = "warning")
         
         # Auto-hide error after 4 seconds
-        invalidateLater(4000, session)
-        observe({
+        later::later(function() {
           login_failed(FALSE)
-        }, priority = -1)
+        }, delay = 4)
       })
       
       # Reset button state
