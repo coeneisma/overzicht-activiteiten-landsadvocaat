@@ -1006,6 +1006,17 @@
       ],
       "Hash": "4b4477baa9a939c5577e5ddb4bf01f28"
     },
+    "shinyBS": {
+      "Package": "shinyBS",
+      "Version": "0.61.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "htmltools",
+        "shiny"
+      ],
+      "Hash": "e44255f073ecdc26ba6bc2ce3fcf174d"
+    },
     "shinyWidgets": {
       "Package": "shinyWidgets",
       "Version": "0.9.0",

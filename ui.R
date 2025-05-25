@@ -4,6 +4,7 @@
 # Load modules
 source("modules/login/login_ui.R")
 source("modules/filters/filters_ui.R")
+source("modules/data_management/data_management_ui.R")
 
 # Initialize shinyjs
 shinyjs::useShinyjs()
@@ -93,11 +94,7 @@ ui <- div(
         icon = icon("folder-open"),
         value = "tab_zaakbeheer",
         
-        div(
-          class = "container-fluid",
-          h1("Zaakbeheer"),
-          p("Data management module wordt binnenkort geladen...", class = "text-muted")
-        )
+        data_management_ui("data_mgmt")
       ),
       
       # Export tab

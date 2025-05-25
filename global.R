@@ -20,6 +20,7 @@ library(tidyr)
 library(DT)
 library(shinyWidgets)
 library(shinycssloaders)
+library(shinyBS)
 
 # Visualization
 library(plotly)

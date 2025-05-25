@@ -33,9 +33,12 @@ login_server <- function(id) {
     # OUTPUTS FOR UI CONDITIONALS
     # ========================================================================
     
+    # Track if login was attempted
+    login_attempted <- reactiveVal(FALSE)
+    
     # Login failed state (for conditional error message)
     output$login_failed <- reactive({
-      login_failed()
+      login_failed() && login_attempted()
     })
     outputOptions(output, "login_failed", suspendWhenHidden = FALSE)
     
@@ -52,6 +55,9 @@ login_server <- function(id) {
     
     # Handle login button click
     observeEvent(input$login_btn, {
+      
+      # Mark that login was attempted
+      login_attempted(TRUE)
       
       # Reset previous error state
       login_failed(FALSE)
@@ -123,10 +129,10 @@ login_server <- function(id) {
           updateTextInput(session, "wachtwoord", value = "")
           
           # Auto-hide error after 4 seconds
-          invalidateLater(4000)
+          invalidateLater(4000, session)
           observe({
             login_failed(FALSE)
-          })
+          }, priority = -1)
           
           # Show notification
           show_notification("Inloggen mislukt. Controleer uw gegevens.", type = "warning")
@@ -139,11 +145,11 @@ login_server <- function(id) {
         login_failed(TRUE)
         show_notification("Er is een fout opgetreden. Probeer opnieuw.", type = "warning")
         
-        # Auto-hide error
-        invalidateLater(4000)
+        # Auto-hide error after 4 seconds
+        invalidateLater(4000, session)
         observe({
           login_failed(FALSE)
-        })
+        }, priority = -1)
       })
       
       # Reset button state
@@ -173,6 +179,7 @@ login_server <- function(id) {
       current_user_full_name(NULL)
       login_failed(FALSE)
       login_attempts(0)
+      login_attempted(FALSE)  # ADD THIS LINE
       
       show_notification("U bent uitgelogd", type = "message")
     }

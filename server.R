@@ -4,6 +4,7 @@
 # Load modules
 source("modules/login/login_server.R")
 source("modules/filters/filters_server.R")
+source("modules/data_management/data_management_server.R")
 
 # =============================================================================
 # SERVER FUNCTION
@@ -105,6 +106,20 @@ server <- function(input, output, session) {
   
   # Get filtered data
   filtered_data <- filter_result$filtered_data
+  
+  # =========================================================================
+  # DATA MANAGEMENT MODULE
+  # =========================================================================
+  
+  # Initialize data management module
+  observeEvent(login_result$authenticated(), {
+    if (login_result$authenticated()) {
+      data_management_server("data_mgmt", filtered_data, raw_data, 
+                             login_result$user, function() {
+                               data_refresh_trigger(data_refresh_trigger() + 1)
+                             })
+    }
+  }, once = TRUE)
   
   # =========================================================================
   # MAIN NAVIGATION ACTIONS
