@@ -94,9 +94,8 @@ ui <- div(
         value = "tab_zaakbeheer",
         
         div(
-          class = "container-fluid",
-          h1("Zaakbeheer"),
-          p("Data management module wordt binnenkort geladen...", class = "text-muted")
+          class = "container-fluid p-4",
+          data_management_ui("data_mgmt")
         )
       ),
       

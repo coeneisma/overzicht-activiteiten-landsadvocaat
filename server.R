@@ -72,14 +72,14 @@ server <- function(input, output, session) {
   })
   
   # =========================================================================
-  # SIDEBAR STATISTICS
+  # SIDEBAR STATISTICS (updated to use filter module result)
   # =========================================================================
   
   # Total number of cases (filtered)
   output$stats_total_zaken <- renderText({
     req(login_result$authenticated())
-    data <- filtered_data()
-    if (nrow(data) == 0) return("0")
+    data <- filtered_data()  # Now uses the variable from filter module
+    if (is.null(data) || nrow(data) == 0) return("0")
     
     # Exclude deleted cases
     active_data <- data[data$status_zaak != "Verwijderd", ]
@@ -89,8 +89,8 @@ server <- function(input, output, session) {
   # Number of open cases (filtered)
   output$stats_open_zaken <- renderText({
     req(login_result$authenticated())
-    data <- filtered_data()
-    if (nrow(data) == 0) return("0")
+    data <- filtered_data()  # Now uses the variable from filter module
+    if (is.null(data) || nrow(data) == 0) return("0")
     
     open_cases <- sum(data$status_zaak %in% c("Open", "In_behandeling"), na.rm = TRUE)
     format(open_cases, big.mark = ".")
@@ -103,8 +103,31 @@ server <- function(input, output, session) {
   # Initialize filter module (always, but data only loads after login)
   filter_result <- filters_server("filters", raw_data, data_refresh_trigger)
   
-  # Get filtered data
+  # Get filtered data from filter module
   filtered_data <- filter_result$filtered_data
+  
+  # =========================================================================
+  # DATA MANAGEMENT MODULE (MINIMAL VERSION)
+  # =========================================================================
+  
+  # Initialize minimal data management module
+  data_mgmt_result <- tryCatch({
+    cli_alert_info("Initializing minimal data management module...")
+    result <- data_management_server(
+      "data_mgmt", 
+      filtered_data, 
+      raw_data, 
+      data_refresh_trigger, 
+      login_result$user
+    )
+    cli_alert_success("Minimal data management module initialized successfully")
+    result
+  }, error = function(e) {
+    cli_alert_danger("Error initializing data management module: {e$message}")
+    cat("Full error details:\n")
+    print(e)
+    NULL
+  })
   
   # =========================================================================
   # MAIN NAVIGATION ACTIONS

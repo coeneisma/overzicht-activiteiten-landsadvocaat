@@ -285,8 +285,14 @@ source("modules/filters/filters_ui.R")
 source("modules/filters/filters_server.R")
 
 # Data management module
-# source("modules/data_management/data_management_ui.R") 
-# source("modules/data_management/data_management_server.R")
+tryCatch({
+  source("modules/data_management/data_management_ui.R") 
+  source("modules/data_management/data_management_server.R")
+  message("✓ Data management module (minimal) loaded successfully")
+}, error = function(e) {
+  warning("❌ Error loading data management module: ", e$message)
+  print(e)
+})
 
 # Analytics module
 # source("modules/analytics/analytics_ui.R")
