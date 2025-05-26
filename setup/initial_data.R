@@ -145,7 +145,29 @@ initialiseer_standaard_data_fixed <- function(db_path = DB_PATH) {
   message("Alle dropdown opties succesvol toegevoegd!")
 }
 
-#' Voeg test zaken toe (GEFIXTE VERSIE)
+#' Voeg standaard gebruikers toe
+voeg_standaard_gebruikers_toe_fixed <- function(db_path = DB_PATH) {
+  
+  con <- get_db_connection(db_path)
+  on.exit(close_db_connection(con))
+  
+  # Maak admin en test gebruikers met gehashed wachtwoorden
+  gebruikers_sql <- "
+    INSERT OR IGNORE INTO gebruikers (gebruikersnaam, wachtwoord_hash, volledige_naam, email, rol, actief) VALUES
+    ('admin', '1b396327a447a151e4f2b647ab1a093589297247a97aeb7897fd292e6022c99d', 'Administrator', 'admin@ocw.nl', 'admin', 1),
+    ('test', 'c323039c2f7a1646e0de633d0c243303860b64f14b1eda005d26ea27e7a92839', 'Test Gebruiker', 'test@ocw.nl', 'gebruiker', 1)
+  "
+  
+  result <- DBI::dbExecute(con, gebruikers_sql)
+  cat("Standaard gebruikers toegevoegd, result:", result, "\n")
+  
+  message("Standaard gebruikers succesvol toegevoegd!")
+  message("Login gegevens:")
+  message("- Admin: gebruiker 'admin', wachtwoord 'admin123'")
+  message("- Test: gebruiker 'test', wachtwoord 'test123'")
+}
+
+#' Voeg test zaken toe (GEFIXTE VERSIE - geen foreign keys)
 voeg_test_zaken_toe_fixed <- function(db_path = DB_PATH) {
   
   # Voeg test zaken toe met directe SQL (eenvoudiger dan loopen)
@@ -154,32 +176,32 @@ voeg_test_zaken_toe_fixed <- function(db_path = DB_PATH) {
   
   test_zaken_sql <- "
     INSERT OR IGNORE INTO zaken (
-      zaak_id, datum_aanmaak, omschrijving, zaakaanduiding, type_dienst, type_procedure, 
+      zaak_id, datum_aanmaak, omschrijving, type_dienst, type_procedure, 
       rechtsgebied, hoedanigheid_partij, type_wederpartij, reden_inzet, civiel_bestuursrecht,
-      aansprakelijkheid, aanvragende_directie, wjz_mt_lid, la_budget_wjz, budget_andere_directie,
+      aanvragende_directie, wjz_mt_lid, la_budget_wjz, budget_andere_directie,
       financieel_risico, advocaat, adv_kantoor, status_zaak, opmerkingen, aangemaakt_door
     ) VALUES
     (
       'WJZ/LA/2024/001', '2024-01-15', 
       'Advies over aanbestedingsprocedure ziekenhuisuitbreiding',
-      'RB Rotterdam 2024/001', 'Advies', 'Bestuursrecht', 'Bestuursrecht', 'Verweerder',
-      'Bedrijf', 'Complexiteit', 'Bestuursrecht', 'Onduidelijk', 'VWS', 'De Jong',
+      'Advies', 'Bestuursrecht', 'Bestuursrecht', 'Verweerder',
+      'Bedrijf', 'Complexiteit', 'Bestuursrecht', 'VWS', 'De Jong',
       15000, 5000, 250000, 'Mr. A. Jansen', 'Jansen & Partners', 'In_behandeling',
       'Complexe aanbestedingszaak met Europese dimensie', 'admin'
     ),
     (
       'WJZ/LA/2024/002', '2024-02-03',
       'Vertegenwoordiging in schadeclaim na verkeersongeval dienstvoertuig',
-      'RB Den Haag 2024/456', 'Vertegenwoordiging', 'Civiel', 'Civielrecht', 'Verweerder',
-      'Burger', 'Capaciteit', 'Civiel', 'Niet_aansprakelijk', 'IenW', 'Peters',
+      'Vertegenwoordiging', 'Civiel', 'Civielrecht', 'Verweerder',
+      'Burger', 'Capaciteit', 'Civiel', 'IenW', 'Peters',
       8000, 0, 75000, 'Mr. B. Peters', 'Peters Advocaten', 'Open',
       'Standaard aanrijdingszaak', 'admin'
     ),
     (
       'WJZ/LA/2024/003', '2024-03-12',
       'Advies privacy wetgeving nieuwe digitale dienstverlening',
-      '', 'Advies', 'Bestuursrecht', 'Europees_recht', 'Verweerder',
-      '', 'Specialisme', 'Bestuursrecht', '', 'BZK', 'De Vries',
+      'Advies', 'Bestuursrecht', 'Europees_recht', 'Verweerder',
+      '', 'Specialisme', 'Bestuursrecht', 'BZK', 'De Vries',
       12000, 0, 0, '', '', 'Afgerond',
       'AVG compliance check voor nieuwe app', 'admin'
     )
@@ -204,12 +226,16 @@ complete_database_setup_fixed <- function(db_path = DB_PATH) {
   cat("1. Aanmaken database en tabellen...\n")
   setup_database(db_path)
   
-  # 2. Voeg standaard data toe (GEFIXTE versie)
-  cat("2. Toevoegen standaard dropdown opties...\n") 
+  # 2. Voeg standaard gebruikers toe (NIEUW!)
+  cat("2. Toevoegen standaard gebruikers...\n")
+  voeg_standaard_gebruikers_toe_fixed(db_path)
+  
+  # 3. Voeg standaard data toe (GEFIXTE versie)
+  cat("3. Toevoegen standaard dropdown opties...\n") 
   initialiseer_standaard_data_fixed(db_path)
   
-  # 3. Voeg test zaken toe (GEFIXTE versie)
-  cat("3. Toevoegen test zaken...\n")
+  # 4. Voeg test zaken toe (GEFIXTE versie - geen foreign keys)
+  cat("4. Toevoegen test zaken...\n")
   voeg_test_zaken_toe_fixed(db_path)
   
   cat("=== GEFIXTE Database Setup Voltooid ===\n")

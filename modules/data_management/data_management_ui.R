@@ -113,7 +113,7 @@ data_management_ui <- function(id) {
         # Table title
         div(
           h5("Zaken Overzicht", class = "mb-0"),
-          div(class = "small text-muted", "Alle zaken die voldoen aan de filters")
+          div(class = "small text-muted", "Klik op een zaak voor details, dubbelklik om te bewerken")
         ),
         
         # Simple status indicator
@@ -133,6 +133,20 @@ data_management_ui <- function(id) {
           color = "#154273"
         )
       )
-    )
+    ),
+    
+    # ==========================================================================
+    # ZAAK DETAILS MODAL (READ-ONLY)
+    # ==========================================================================
+    
+    # This modal is created dynamically by server when row is clicked
+    
+    # ==========================================================================
+    # ZAAK BEWERKEN MODAL
+    # ==========================================================================
+    
+    # This modal is created dynamically by server when edit is clicked
+    
+    # Note: Both modals are created dynamically by server for better state management
   )
 }

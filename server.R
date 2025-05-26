@@ -83,7 +83,7 @@ server <- function(input, output, session) {
     
     # Exclude deleted cases
     active_data <- data[data$status_zaak != "Verwijderd", ]
-    format(nrow(active_data), big.mark = ".")
+    format(nrow(active_data), big.mark = " ")  # Use space instead of dot
   })
   
   # Number of open cases (filtered)
@@ -93,7 +93,7 @@ server <- function(input, output, session) {
     if (is.null(data) || nrow(data) == 0) return("0")
     
     open_cases <- sum(data$status_zaak %in% c("Open", "In_behandeling"), na.rm = TRUE)
-    format(open_cases, big.mark = ".")
+    format(open_cases, big.mark = " ")  # Use space instead of dot
   })
   
   # =========================================================================
