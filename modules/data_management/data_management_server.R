@@ -193,7 +193,7 @@ data_management_server <- function(id, filtered_data, raw_data, current_user, re
             paginate = list(
               first = "Eerste",
               last = "Laatste",
-              next = "Volgende",
+              `next` = "Volgende",
               previous = "Vorige"
             ),
             zeroRecords = "Geen zaken gevonden"
