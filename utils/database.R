@@ -226,11 +226,33 @@ get_dropdown_opties <- function(categorie, actief_alleen = TRUE) {
     collect()
   
   # Gebruik weergave_naam als die bestaat, anders waarde
-  opties <- ifelse(is.na(result$weergave_naam) | result$weergave_naam == "", 
+  labels <- ifelse(is.na(result$weergave_naam) | result$weergave_naam == "", 
                    result$waarde, result$weergave_naam)
-  names(opties) <- result$waarde
+  opties <- result$waarde
+  names(opties) <- labels
   
   return(opties)
+}
+
+#' Converteer database waarde naar weergave naam
+get_weergave_naam <- function(categorie, waarde) {
+  if (is.na(waarde) || is.null(waarde) || waarde == "") {
+    return(waarde)
+  }
+  
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  result <- tbl_dropdown_opties(con) %>%
+    filter(categorie == !!categorie, waarde == !!waarde) %>%
+    select(weergave_naam) %>%
+    collect()
+  
+  if (nrow(result) > 0 && !is.na(result$weergave_naam) && result$weergave_naam != "") {
+    return(result$weergave_naam)
+  } else {
+    return(waarde)  # Fallback naar originele waarde
+  }
 }
 
 #' Voeg dropdown optie toe

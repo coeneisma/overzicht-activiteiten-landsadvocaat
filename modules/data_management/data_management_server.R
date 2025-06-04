@@ -107,6 +107,10 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         ) %>%
         mutate(
           Datum = format_date_nl(Datum),
+          # Convert database values to display names
+          `Type Dienst` = sapply(`Type Dienst`, function(x) get_weergave_naam("type_dienst", x)),
+          Rechtsgebied = sapply(Rechtsgebied, function(x) get_weergave_naam("rechtsgebied", x)),
+          Status = sapply(Status, function(x) get_weergave_naam("status_zaak", x)),
           # Truncate long descriptions
           Omschrijving = ifelse(
             nchar(Omschrijving) > 60, 
@@ -118,6 +122,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       # Create simple DataTable
       DT::datatable(
         display_data,
+        selection = 'none',  # Disable row selection highlighting
         options = list(
           pageLength = 25,
           lengthMenu = c(10, 25, 50, 100),
@@ -228,11 +233,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             div(class = "col-md-6",
                 strong("Zaak ID: "), zaak_data$zaak_id, br(),
                 strong("Datum: "), format_date_nl(zaak_data$datum_aanmaak), br(),
-                strong("Status: "), zaak_data$status_zaak, br(),
-                strong("Type Dienst: "), ifelse(is.na(zaak_data$type_dienst), "-", zaak_data$type_dienst)
+                strong("Status: "), ifelse(is.na(zaak_data$status_zaak), "-", get_weergave_naam("status_zaak", zaak_data$status_zaak)), br(),
+                strong("Type Dienst: "), ifelse(is.na(zaak_data$type_dienst), "-", get_weergave_naam("type_dienst", zaak_data$type_dienst))
             ),
             div(class = "col-md-6",
-                strong("Rechtsgebied: "), ifelse(is.na(zaak_data$rechtsgebied), "-", zaak_data$rechtsgebied), br(),
+                strong("Rechtsgebied: "), ifelse(is.na(zaak_data$rechtsgebied), "-", get_weergave_naam("rechtsgebied", zaak_data$rechtsgebied)), br(),
                 strong("Aanvragende Directie: "), ifelse(is.na(zaak_data$aanvragende_directie), "-", zaak_data$aanvragende_directie), br(),
                 strong("Advocaat: "), ifelse(is.na(zaak_data$advocaat), "-", zaak_data$advocaat), br(),
                 strong("Kantoor: "), ifelse(is.na(zaak_data$adv_kantoor), "-", zaak_data$adv_kantoor)
@@ -244,42 +249,19 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           
           h5("Financiële Informatie", class = "border-bottom pb-2 mb-3"),
           
-          # Debug info (temporary)
-          div(class = "small text-muted mb-2", 
-              paste("Debug - Raw values:", 
-                    "WJZ:", zaak_data$la_budget_wjz, "(", class(zaak_data$la_budget_wjz), ")",
-                    "Ander:", zaak_data$budget_andere_directie, "(", class(zaak_data$budget_andere_directie), ")",
-                    "Risico:", zaak_data$financieel_risico, "(", class(zaak_data$financieel_risico), ")")
-          ),
-          
           div(
             class = "row mb-3",
             div(class = "col-md-4",
                 strong("Budget WJZ: "), 
-                tryCatch({
-                  budget <- as.numeric(zaak_data$la_budget_wjz)
-                  if(is.na(budget)) budget <- 0
-                  result <- format_currency(budget)
-                  paste0(result, " (raw: ", budget, ")")
-                }, error = function(e) paste0("€ 0 (error: ", e$message, ")"))
+                format_currency(as.numeric(zaak_data$la_budget_wjz))
             ),
             div(class = "col-md-4",
                 strong("Budget Andere Directie: "), 
-                tryCatch({
-                  budget <- as.numeric(zaak_data$budget_andere_directie) 
-                  if(is.na(budget)) budget <- 0
-                  result <- format_currency(budget)
-                  paste0(result, " (raw: ", budget, ")")
-                }, error = function(e) paste0("€ 0 (error: ", e$message, ")"))
+                format_currency(as.numeric(zaak_data$budget_andere_directie))
             ),
             div(class = "col-md-4",
                 strong("Financieel Risico: "), 
-                tryCatch({
-                  risico <- as.numeric(zaak_data$financieel_risico)
-                  if(is.na(risico)) risico <- 0
-                  result <- format_currency(risico)
-                  paste0(result, " (raw: ", risico, ")")
-                }, error = function(e) paste0("€ 0 (error: ", e$message, ")"))
+                format_currency(as.numeric(zaak_data$financieel_risico))
             )
           ),
           

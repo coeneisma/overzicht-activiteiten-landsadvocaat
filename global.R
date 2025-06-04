@@ -160,7 +160,7 @@ app_theme <- bs_add_rules(app_theme,
 format_currency <- function(x) {
   ifelse(is.na(x) | x == 0, 
          "€ 0", 
-         paste0("€ ", format(x, big.mark = ".", decimal.mark = ",", digits = 0, nsmall = 0)))
+         paste0("€ ", format(x, big.mark = ".", decimal.mark = ",", nsmall = 0, scientific = FALSE)))
 }
 
 #' Format dates for display
