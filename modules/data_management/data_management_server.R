@@ -243,19 +243,43 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           p(ifelse(is.na(zaak_data$omschrijving), "Geen omschrijving", zaak_data$omschrijving)),
           
           h5("Financiële Informatie", class = "border-bottom pb-2 mb-3"),
+          
+          # Debug info (temporary)
+          div(class = "small text-muted mb-2", 
+              paste("Debug - Raw values:", 
+                    "WJZ:", zaak_data$la_budget_wjz, "(", class(zaak_data$la_budget_wjz), ")",
+                    "Ander:", zaak_data$budget_andere_directie, "(", class(zaak_data$budget_andere_directie), ")",
+                    "Risico:", zaak_data$financieel_risico, "(", class(zaak_data$financieel_risico), ")")
+          ),
+          
           div(
             class = "row mb-3",
             div(class = "col-md-4",
                 strong("Budget WJZ: "), 
-                tryCatch(format_currency(zaak_data$la_budget_wjz), error = function(e) "€ 0")
+                tryCatch({
+                  budget <- as.numeric(zaak_data$la_budget_wjz)
+                  if(is.na(budget)) budget <- 0
+                  result <- format_currency(budget)
+                  paste0(result, " (raw: ", budget, ")")
+                }, error = function(e) paste0("€ 0 (error: ", e$message, ")"))
             ),
             div(class = "col-md-4",
                 strong("Budget Andere Directie: "), 
-                tryCatch(format_currency(zaak_data$budget_andere_directie), error = function(e) "€ 0")
+                tryCatch({
+                  budget <- as.numeric(zaak_data$budget_andere_directie) 
+                  if(is.na(budget)) budget <- 0
+                  result <- format_currency(budget)
+                  paste0(result, " (raw: ", budget, ")")
+                }, error = function(e) paste0("€ 0 (error: ", e$message, ")"))
             ),
             div(class = "col-md-4",
                 strong("Financieel Risico: "), 
-                tryCatch(format_currency(zaak_data$financieel_risico), error = function(e) "€ 0")
+                tryCatch({
+                  risico <- as.numeric(zaak_data$financieel_risico)
+                  if(is.na(risico)) risico <- 0
+                  result <- format_currency(risico)
+                  paste0(result, " (raw: ", risico, ")")
+                }, error = function(e) paste0("€ 0 (error: ", e$message, ")"))
             )
           ),
           
@@ -937,8 +961,43 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           stringsAsFactors = FALSE
         )
         
-        # Save to database
-        voeg_zaak_toe(form_data, current_user())
+        # Save to database using direct SQL to avoid type issues
+        tryCatch({
+          con <- get_db_connection()
+          
+          # Insert new case with proper data types
+          DBI::dbExecute(con, "
+            INSERT INTO zaken (
+              zaak_id, datum_aanmaak, omschrijving, aanvragende_directie,
+              type_dienst, rechtsgebied, status_zaak, advocaat,
+              la_budget_wjz, budget_andere_directie, financieel_risico,
+              opmerkingen, aangemaakt_door, laatst_gewijzigd
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ", list(
+            form_data$zaak_id,
+            form_data$datum_aanmaak,
+            form_data$omschrijving,
+            form_data$aanvragende_directie,
+            form_data$type_dienst,
+            form_data$rechtsgebied,
+            form_data$status_zaak,
+            form_data$advocaat,
+            as.numeric(form_data$la_budget_wjz),        # Ensure numeric
+            as.numeric(form_data$budget_andere_directie), # Ensure numeric
+            as.numeric(form_data$financieel_risico),    # Ensure numeric
+            form_data$opmerkingen,
+            current_user(),
+            as.character(Sys.time())  # Consistent string format
+          ))
+          
+          close_db_connection(con)
+          
+        }, error = function(e) {
+          if (exists("con") && DBI::dbIsValid(con)) {
+            close_db_connection(con)
+          }
+          stop(e$message)
+        })
         
         cli_alert_success("New case created: {form_data$zaak_id}")
         show_notification(paste("Nieuwe zaak toegevoegd:", form_data$zaak_id), type = "message")
