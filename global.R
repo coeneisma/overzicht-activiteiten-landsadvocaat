@@ -63,6 +63,9 @@ DEFAULT_ITEMS_PER_PAGE <- 25
 # Source database utilities
 source("utils/database.R")
 
+# Add resource path for media files
+addResourcePath("media", "media")
+
 # Test database connectivity at startup
 tryCatch({
   con <- get_db_connection(DB_PATH)
@@ -106,6 +109,26 @@ app_theme <- bs_add_rules(app_theme,
   .navbar-brand {
     font-weight: 600;
     font-size: 1.3em;
+  }
+  
+  /* Navbar styling to match login screen */
+  .navbar, .navbar-expand-lg, .navbar-light {
+    background-color: #154273 !important;
+    background: #154273 !important;
+  }
+  
+  .navbar-brand, .navbar-nav .nav-link, .navbar-text {
+    color: white !important;
+  }
+  
+  .navbar-toggler {
+    border-color: rgba(255, 255, 255, 0.3) !important;
+  }
+  
+  /* Version number in navbar should be white */
+  .navbar .nav-item .text-muted,
+  .navbar .text-muted {
+    color: white !important;
   }
   
   .sidebar {

@@ -43,16 +43,16 @@ ui <- div(
             div(
               class = "row text-center",
               div(class = "col-4",
+                  h4(textOutput("stats_total_all", inline = TRUE), class = "text-info"),
+                  div("Totaal", class = "text-muted small")
+              ),
+              div(class = "col-4",
                   h4(textOutput("stats_total_zaken", inline = TRUE), class = "text-primary"),
                   div("Gefilterd", class = "text-muted small")
               ),
               div(class = "col-4", 
                   h4(textOutput("stats_open_zaken", inline = TRUE), class = "text-warning"),
                   div("Open", class = "text-muted small")
-              ),
-              div(class = "col-4",
-                  h4("3", class = "text-info"),
-                  div("Totaal", class = "text-muted small")
               )
             )
           )

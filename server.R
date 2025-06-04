@@ -96,6 +96,17 @@ server <- function(input, output, session) {
     format(open_cases, big.mark = " ")  # Use space instead of dot
   })
   
+  # Total number of cases (unfiltered - all data in database)
+  output$stats_total_all <- renderText({
+    req(login_result$authenticated())
+    data <- raw_data()  # Use raw unfiltered data
+    if (is.null(data) || nrow(data) == 0) return("0")
+    
+    # Exclude deleted cases
+    active_data <- data[data$status_zaak != "Verwijderd", ]
+    format(nrow(active_data), big.mark = " ")  # Use space instead of dot
+  })
+  
   # =========================================================================
   # FILTER MODULE
   # =========================================================================
