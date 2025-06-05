@@ -60,7 +60,7 @@ options(
       paginate = list(
         first = "Eerste",
         last = "Laatste", 
-        `next` = "Volgende",
+        # `next` = "Volgende",
         previous = "Vorige"
       )
     )

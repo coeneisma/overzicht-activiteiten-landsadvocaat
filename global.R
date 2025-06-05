@@ -172,6 +172,34 @@ app_theme <- bs_add_rules(app_theme,
   .modal-header .btn-close {
     filter: brightness(0) invert(1);
   }
+  
+  /* Fix scroll issues */
+  html, body {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    height: auto !important;
+    min-height: 100vh;
+  }
+  
+  .container-fluid {
+    overflow: visible !important;
+  }
+  
+  /* Ensure main content area is scrollable */
+  .tab-content {
+    overflow-y: auto !important;
+    max-height: none !important;
+  }
+  
+  /* Fix potential modal scroll blocking */
+  .modal-open {
+    overflow: hidden !important;
+  }
+  
+  .modal-open .navbar,
+  .modal-open .sidebar {
+    filter: none !important;
+  }
   "
 )
 

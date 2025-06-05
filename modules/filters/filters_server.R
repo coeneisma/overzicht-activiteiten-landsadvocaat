@@ -43,8 +43,7 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
           (!is.null(input$risico_max) && input$risico_max > 0),
         hoedanigheid_partij = !is.null(input$hoedanigheid_partij) && length(input$hoedanigheid_partij) > 0,
         type_wederpartij = !is.null(input$type_wederpartij) && length(input$type_wederpartij) > 0,
-        reden_inzet = !is.null(input$reden_inzet) && length(input$reden_inzet) > 0,
-        civiel_bestuursrecht = !is.null(input$civiel_bestuursrecht) && length(input$civiel_bestuursrecht) > 0
+        reden_inzet = !is.null(input$reden_inzet) && length(input$reden_inzet) > 0
       )
     })
     
@@ -63,15 +62,15 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
       tryCatch({
         # Load dropdown options for each category
         dropdown_categories <- c("type_dienst", "rechtsgebied", "type_procedure", "status_zaak",
-                                 "hoedanigheid_partij", "type_wederpartij", "reden_inzet", "civiel_bestuursrecht",
+                                 "hoedanigheid_partij", "type_wederpartij", "reden_inzet",
                                  "aanvragende_directie")
         
         for (category in dropdown_categories) {
           choices <- get_dropdown_opties(category)
           dropdown_choices[[category]] <- choices
           
-          # Update the selectInput
-          updateSelectInput(session, category, choices = c("Alle" = "", choices))
+          # Update the selectInput with force refresh
+          updateSelectInput(session, category, choices = c("Alle" = "", choices), selected = "")
         }
         
         # Load unique values from actual data for non-dropdown fields
@@ -195,10 +194,6 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
         filtered <- filtered %>% filter(reden_inzet %in% input$reden_inzet)
       }
       
-      if (!is.null(input$civiel_bestuursrecht) && length(input$civiel_bestuursrecht) > 0) {
-        filtered <- filtered %>% filter(civiel_bestuursrecht %in% input$civiel_bestuursrecht)
-      }
-      
       # Date range filter
       if (!is.null(input$datum_range)) {
         if (!is.null(input$datum_range[1])) {
@@ -239,10 +234,7 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
         filtered <- filtered %>% filter(financieel_risico <= input$risico_max)
       }
       
-      # Remove deleted cases by default (unless user wants to see them)
-      if (!isTRUE(input$show_deleted)) {
-        filtered <- filtered %>% filter(status_zaak != "Verwijderd")
-      }
+      # Note: No need to filter deleted cases since they are permanently deleted
       
       return(filtered)
     }) %>% 
@@ -295,7 +287,7 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
       # Reset dropdown filters
       dropdown_inputs <- c("type_dienst", "rechtsgebied", "type_procedure", "status_zaak",
                            "hoedanigheid_partij", "type_wederpartij", "reden_inzet", 
-                           "civiel_bestuursrecht", "aanvragende_directie", "advocaat", "adv_kantoor")
+                           "aanvragende_directie", "advocaat", "adv_kantoor")
       
       for (input_id in dropdown_inputs) {
         updateSelectInput(session, input_id, selected = character(0))
@@ -314,9 +306,6 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
       updateNumericInput(session, "budget_max", value = NA)
       updateNumericInput(session, "risico_min", value = NA)
       updateNumericInput(session, "risico_max", value = NA)
-      
-      # Reset show deleted checkbox
-      updateCheckboxInput(session, "show_deleted", value = FALSE)
       
       cli_alert_info("Filters reset")
       show_notification("Alle filters zijn gereset", type = "message")

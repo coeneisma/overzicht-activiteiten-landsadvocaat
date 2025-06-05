@@ -208,7 +208,7 @@ tbl_gebruikers <- function(con = NULL) {
 # =============================================================================
 
 #' Krijg alle opties voor een dropdown categorie
-get_dropdown_opties <- function(categorie, actief_alleen = TRUE) {
+get_dropdown_opties <- function(categorie, actief_alleen = TRUE, exclude_fallback = TRUE) {
   
   con <- get_db_connection()
   on.exit(close_db_connection(con))
@@ -218,6 +218,11 @@ get_dropdown_opties <- function(categorie, actief_alleen = TRUE) {
   
   if (actief_alleen) {
     query <- query %>% filter(actief == 1)
+  }
+  
+  # Exclude fallback values (niet_ingesteld) voor selecteerbare dropdowns
+  if (exclude_fallback) {
+    query <- query %>% filter(waarde != "niet_ingesteld")
   }
   
   result <- query %>%
@@ -240,6 +245,11 @@ get_dropdown_opties <- function(categorie, actief_alleen = TRUE) {
 get_weergave_naam <- function(categorie, waarde) {
   if (is.na(waarde) || is.null(waarde) || waarde == "") {
     return(waarde)
+  }
+  
+  # Special handling for fallback value
+  if (waarde == "niet_ingesteld") {
+    return("Niet ingesteld")
   }
   
   con <- get_db_connection()
@@ -274,6 +284,77 @@ add_dropdown_optie <- function(categorie, waarde, weergave_naam = NULL,
   )
   
   DBI::dbAppendTable(con, "dropdown_opties", nieuwe_optie)
+}
+
+#' Verwijder dropdown optie met vervanging voor zaken in gebruik
+verwijder_dropdown_optie <- function(categorie, waarde, gebruiker = "system") {
+  
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  tryCatch({
+    # Start transactie
+    DBI::dbBegin(con)
+    
+    # 1. Zoek kolom naam voor deze categorie in zaken tabel
+    kolom_mapping <- list(
+      "type_dienst" = "type_dienst",
+      "rechtsgebied" = "rechtsgebied", 
+      "status_zaak" = "status_zaak",
+      "aanvragende_directie" = "aanvragende_directie",
+      "type_wederpartij" = "type_wederpartij",
+      "reden_inzet" = "reden_inzet",
+      "hoedanigheid_partij" = "hoedanigheid_partij"
+    )
+    
+    kolom_naam <- kolom_mapping[[categorie]]
+    if (is.null(kolom_naam)) {
+      stop(paste("Onbekende categorie:", categorie))
+    }
+    
+    # 2. Check of waarde in gebruik is in zaken
+    query <- paste0("SELECT COUNT(*) as count FROM zaken WHERE ", kolom_naam, " = ?")
+    gebruik_count <- DBI::dbGetQuery(con, query, list(waarde))$count
+    
+    # 3. Als in gebruik, vervang door "niet_ingesteld" 
+    if (gebruik_count > 0) {
+      # Voeg "niet_ingesteld" optie toe als deze nog niet bestaat
+      bestaande_niet_ingesteld <- DBI::dbGetQuery(con, "
+        SELECT COUNT(*) as count FROM dropdown_opties 
+        WHERE categorie = ? AND waarde = 'niet_ingesteld'
+      ", list(categorie))$count
+      
+      if (bestaande_niet_ingesteld == 0) {
+        DBI::dbExecute(con, "
+          INSERT INTO dropdown_opties (categorie, waarde, weergave_naam, volgorde, aangemaakt_door, actief)
+          VALUES (?, 'niet_ingesteld', 'Niet ingesteld', -1, ?, 0)
+        ", list(categorie, gebruiker))
+      }
+      
+      # Update alle zaken die deze waarde gebruiken
+      update_query <- paste0("UPDATE zaken SET ", kolom_naam, " = 'niet_ingesteld' WHERE ", kolom_naam, " = ?")
+      DBI::dbExecute(con, update_query, list(waarde))
+    }
+    
+    # 4. Verwijder de dropdown optie
+    rows_deleted <- DBI::dbExecute(con, "
+      DELETE FROM dropdown_opties 
+      WHERE categorie = ? AND waarde = ?
+    ", list(categorie, waarde))
+    
+    # Debug info
+    message("Deleted ", rows_deleted, " rows for categorie='", categorie, "', waarde='", waarde, "'")
+    
+    # Commit transactie
+    DBI::dbCommit(con)
+    
+    return(list(success = TRUE, zaken_updated = gebruik_count))
+    
+  }, error = function(e) {
+    # Rollback bij fout
+    DBI::dbRollback(con)
+    return(list(success = FALSE, error = e$message))
+  })
 }
 
 # =============================================================================

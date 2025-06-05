@@ -146,17 +146,6 @@ filters_ui <- function(id) {
             multiple = TRUE,
             width = "100%"
           )
-        ),
-        
-        # Show deleted cases option
-        div(
-          class = "mb-3",
-          checkboxInput(
-            ns("show_deleted"),
-            "Toon verwijderde zaken",
-            value = FALSE,
-            width = "100%"
-          )
         )
       ),
       
@@ -370,18 +359,6 @@ filters_ui <- function(id) {
           )
         ),
         
-        # Civiel/Bestuursrecht
-        div(
-          class = "mb-3",
-          selectInput(
-            ns("civiel_bestuursrecht"),
-            "Civiel/Bestuursrecht:",
-            choices = NULL,
-            selected = NULL,
-            multiple = TRUE,
-            width = "100%"
-          )
-        )
       )
     ),
     

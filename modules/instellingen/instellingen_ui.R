@@ -133,7 +133,7 @@ instellingen_ui <- function(id) {
                       )
                     ),
                     
-                    # Aanvragende Directie (new)
+                    # Aanvragende Directie
                     tags$a(
                       href = "#",
                       class = "list-group-item list-group-item-action",
@@ -142,6 +142,42 @@ instellingen_ui <- function(id) {
                         class = "d-flex w-100 justify-content-between",
                         h6("Aanvragende Directie", class = "mb-1"),
                         span(textOutput(ns("count_aanvragende_directie"), inline = TRUE), class = "badge bg-secondary")
+                      )
+                    ),
+                    
+                    # Type Wederpartij
+                    tags$a(
+                      href = "#",
+                      class = "list-group-item list-group-item-action",
+                      onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'type_wederpartij', {priority: 'event'})"),
+                      div(
+                        class = "d-flex w-100 justify-content-between",
+                        h6("Type Wederpartij", class = "mb-1"),
+                        span(textOutput(ns("count_type_wederpartij"), inline = TRUE), class = "badge bg-secondary")
+                      )
+                    ),
+                    
+                    # Reden Inzet
+                    tags$a(
+                      href = "#",
+                      class = "list-group-item list-group-item-action",
+                      onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'reden_inzet', {priority: 'event'})"),
+                      div(
+                        class = "d-flex w-100 justify-content-between",
+                        h6("Reden Inzet", class = "mb-1"),
+                        span(textOutput(ns("count_reden_inzet"), inline = TRUE), class = "badge bg-secondary")
+                      )
+                    ),
+                    
+                    # Hoedanigheid Partij
+                    tags$a(
+                      href = "#",
+                      class = "list-group-item list-group-item-action",
+                      onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'hoedanigheid_partij', {priority: 'event'})"),
+                      div(
+                        class = "d-flex w-100 justify-content-between",
+                        h6("Hoedanigheid Partij", class = "mb-1"),
+                        span(textOutput(ns("count_hoedanigheid_partij"), inline = TRUE), class = "badge bg-secondary")
                       )
                     )
                   )
