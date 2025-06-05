@@ -47,6 +47,19 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "user_is_admin", suspendWhenHidden = FALSE)
   
+  # Hide/Show Instellingen tab based on admin status using CSS classes
+  observe({
+    if (login_result$authenticated()) {
+      if (login_result$is_admin()) {
+        # Show Instellingen tab for admin users - remove hide class
+        shinyjs::removeClass(selector = "#main_navbar", class = "hide-admin-tabs")
+      } else {
+        # Hide Instellingen tab for regular users - add hide class
+        shinyjs::addClass(selector = "#main_navbar", class = "hide-admin-tabs")
+      }
+    }
+  })
+  
   # Current user display name
   output$current_user_display <- renderText({
     req(login_result$authenticated())
@@ -167,6 +180,29 @@ server <- function(input, output, session) {
   })
   
   # =========================================================================
+  # ANALYSE MODULE
+  # =========================================================================
+  
+  # Initialize analyse module
+  analyse_result <- tryCatch({
+    cli_alert_info("Initializing analyse module...")
+    result <- analyse_server(
+      "analyse",
+      filtered_data,
+      raw_data,
+      data_refresh_trigger,
+      login_result$user
+    )
+    cli_alert_success("Analyse module initialized successfully")
+    result
+  }, error = function(e) {
+    cli_alert_danger("Error initializing analyse module: {e$message}")
+    cat("Full error details:\n")
+    print(e)
+    NULL
+  })
+  
+  # =========================================================================
   # MAIN NAVIGATION ACTIONS
   # =========================================================================
   
@@ -190,10 +226,10 @@ server <- function(input, output, session) {
   # TAB CONTENT PLACEHOLDERS
   # =========================================================================
   
-  # Dashboard tab - show when user switches to it
+  # Analyse tab - show when user switches to it
   observeEvent(input$main_navbar, {
-    if (input$main_navbar == "tab_dashboard" && login_result$authenticated()) {
-      cli_alert_info("User navigated to Dashboard tab")
+    if (input$main_navbar == "tab_analyse" && login_result$authenticated()) {
+      cli_alert_info("User navigated to Analyse tab")
     }
   })
   

@@ -86,39 +86,28 @@ ui <- div(
         )
       ),
       
-      # Analyse tab (renamed from Dashboard)
+      # Analyse tab
       nav_panel(
         title = "Analyse",
         icon = icon("chart-line"),
-        value = "tab_dashboard",
+        value = "tab_analyse",
         
         div(
-          class = "container-fluid",
-          h1("Analyse Overzicht"),
-          p("Analytics module wordt binnenkort geladen...", class = "text-muted")
+          class = "container-fluid p-4",
+          analyse_ui("analyse")
         )
       ),
       
-      # Instellingen tab (admin only)
+      # Instellingen tab (admin only) - use CSS classes to hide/show
       nav_panel(
         title = "Instellingen",
         icon = icon("cog"),
         value = "tab_instellingen",
+        class = "admin-only-tab",
         
-        conditionalPanel(
-          condition = "output.user_is_admin == true",
+        div(
+          class = "container-fluid p-4",
           instellingen_ui("instellingen")
-        ),
-        
-        conditionalPanel(
-          condition = "output.user_is_admin != true",
-          div(
-            class = "container-fluid",
-            div(
-              class = "alert alert-warning",
-              icon("lock"), " Alleen administrators hebben toegang tot deze pagina."
-            )
-          )
         )
       ),
       

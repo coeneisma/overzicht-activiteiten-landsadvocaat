@@ -24,6 +24,7 @@ library(shinycssloaders)
 # Visualization
 library(plotly)
 library(ggplot2)
+library(RColorBrewer)
 
 # File handling
 library(readxl)
@@ -139,6 +140,7 @@ app_theme <- bs_add_rules(app_theme,
   .card {
     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     border: 1px solid rgba(0, 0, 0, 0.125);
+    overflow: visible !important;
   }
   
   .btn-primary {
@@ -201,8 +203,71 @@ app_theme <- bs_add_rules(app_theme,
     filter: none !important;
   }
   
-  "
-)
+  /* Fix dropdown overflow in cards - allow dropdowns to extend outside card bounds */
+  
+  .card-body {
+    overflow: visible !important;
+  }
+  
+  /* Specifically for selectize (shiny dropdown) containers */
+  .selectize-control,
+  .selectize-dropdown {
+    z-index: 1050 !important;
+  }
+  
+  .selectize-dropdown {
+    position: absolute !important;
+    max-height: 200px !important;
+    overflow-y: auto !important;
+  }
+  
+  /* Ensure row containers don't clip content */
+  .row {
+    overflow: visible !important;
+  }
+  
+  /* Fix for analyse module filter cards specifically */
+  .analyse-filters .card,
+  .analyse-filters .card-body,
+  .analyse-filters .row,
+  .analyse-filters .col-md-3 {
+    overflow: visible !important;
+    position: relative !important;
+  }
+  
+  /* Hide admin-only tabs for non-admin users */
+  .hide-admin-tabs a[data-value='tab_instellingen'] {
+    display: none !important;
+  }
+  
+  .hide-admin-tabs .nav-item:has(a[data-value='tab_instellingen']) {
+    display: none !important;
+  }
+  
+  .hide-admin-tabs .tab-pane[data-value='tab_instellingen'] {
+    display: none !important;
+  }
+  
+  /* For bslib Bootstrap 5 navbar structure */
+  .hide-admin-tabs .navbar-nav a[data-value='tab_instellingen'] {
+    display: none !important;
+  }
+  
+  .hide-admin-tabs .navbar-nav .nav-link[data-value='tab_instellingen'] {
+    display: none !important;
+  }
+  
+  /* Alternative approach - hide the entire nav-item containing the Instellingen link */
+  .hide-admin-tabs .nav-item:has([data-value='tab_instellingen']) {
+    display: none !important;
+  }
+  
+  /* Fallback for browsers that don't support :has() */
+  .hide-admin-tabs [data-value='tab_instellingen'] {
+    display: none !important;
+  }
+  
+  ")
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -356,9 +421,15 @@ tryCatch({
   print(e)
 })
 
-# Analytics module
-# source("modules/analytics/analytics_ui.R")
-# source("modules/analytics/analytics_server.R")
+# Analyse module
+tryCatch({
+  source("modules/analyse/analyse_ui.R")
+  source("modules/analyse/analyse_server.R")
+  message("✓ Analyse module loaded successfully")
+}, error = function(e) {
+  warning("❌ Error loading analyse module: ", e$message)
+  print(e)
+})
 
 # Export module
 # source("modules/export/export_ui.R")
