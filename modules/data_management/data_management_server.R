@@ -670,6 +670,93 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       show_nieuwe_zaak_modal()
     })
     
+    # Download handler for Excel export
+    output$download_excel <- downloadHandler(
+      filename = function() {
+        timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+        paste0("Zaken_Export_", timestamp, ".xlsx")
+      },
+      content = function(file) {
+        cli_alert_info("Excel download requested by user: {current_user()}")
+        
+        data <- filtered_data()
+        
+        if (is.null(data) || nrow(data) == 0) {
+          # Create an empty file with a message
+          empty_data <- data.frame("Bericht" = "Geen data beschikbaar om te exporteren")
+          writexl::write_xlsx(list("Bericht" = empty_data), path = file)
+          return()
+        }
+        
+        tryCatch({
+          # Prepare export data with proper formatting
+          export_data <- data %>%
+            select(
+              "Zaak ID" = zaak_id,
+              "Datum Aanmaak" = datum_aanmaak,
+              "Omschrijving" = omschrijving,
+              "Type Dienst" = type_dienst,
+              "Rechtsgebied" = rechtsgebied,
+              "Status" = status_zaak,
+              "Aanvragende Directie" = aanvragende_directie,
+              "Advocaat" = advocaat,
+              "Advocatenkantoor" = adv_kantoor,
+              "Budget WJZ (€)" = la_budget_wjz,
+              "Budget Andere Directie (€)" = budget_andere_directie,
+              "Financieel Risico (€)" = financieel_risico,
+              "Opmerkingen" = opmerkingen,
+              "Aangemaakt Door" = aangemaakt_door,
+              "Laatst Gewijzigd" = laatst_gewijzigd,
+              "Gewijzigd Door" = gewijzigd_door
+            ) %>%
+            mutate(
+              # Format dates
+              `Datum Aanmaak` = format_date_nl(`Datum Aanmaak`),
+              `Laatst Gewijzigd` = ifelse(
+                is.na(`Laatst Gewijzigd`), 
+                "", 
+                format(as.POSIXct(`Laatst Gewijzigd`), "%d-%m-%Y %H:%M")
+              ),
+              
+              # Convert database values to display names for readability
+              `Type Dienst` = sapply(`Type Dienst`, function(x) if(is.na(x)) "" else get_weergave_naam("type_dienst", x)),
+              Rechtsgebied = sapply(Rechtsgebied, function(x) if(is.na(x)) "" else get_weergave_naam("rechtsgebied", x)),
+              Status = sapply(Status, function(x) if(is.na(x)) "" else get_weergave_naam("status_zaak", x)),
+              `Aanvragende Directie` = sapply(`Aanvragende Directie`, function(x) if(is.na(x)) "" else get_weergave_naam("aanvragende_directie", x)),
+              
+              # Format currency values
+              `Budget WJZ (€)` = ifelse(is.na(`Budget WJZ (€)`) | `Budget WJZ (€)` == 0, "", as.numeric(`Budget WJZ (€)`)),
+              `Budget Andere Directie (€)` = ifelse(is.na(`Budget Andere Directie (€)`) | `Budget Andere Directie (€)` == 0, "", as.numeric(`Budget Andere Directie (€)`)),
+              `Financieel Risico (€)` = ifelse(is.na(`Financieel Risico (€)`) | `Financieel Risico (€)` == 0, "", as.numeric(`Financieel Risico (€)`)),
+              
+              # Clean up other fields
+              Advocaat = ifelse(is.na(Advocaat), "", Advocaat),
+              Advocatenkantoor = ifelse(is.na(Advocatenkantoor), "", Advocatenkantoor),
+              Opmerkingen = ifelse(is.na(Opmerkingen), "", Opmerkingen),
+              `Aangemaakt Door` = ifelse(is.na(`Aangemaakt Door`), "", `Aangemaakt Door`),
+              `Gewijzigd Door` = ifelse(is.na(`Gewijzigd Door`), "", `Gewijzigd Door`)
+            )
+          
+          # Write to Excel with formatting
+          writexl::write_xlsx(
+            list("Zaken" = export_data), 
+            path = file,
+            col_names = TRUE,
+            format_headers = TRUE
+          )
+          
+          cli_alert_success("Excel file generated for download ({nrow(export_data)} zaken)")
+          
+        }, error = function(e) {
+          cli_alert_danger("Error generating Excel file: {e$message}")
+          # Create error file
+          error_data <- data.frame("Fout" = paste("Er is een fout opgetreden bij het exporteren:", e$message))
+          writexl::write_xlsx(list("Fout" = error_data), path = file)
+        })
+      },
+      contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    
     # ========================================================================
     # DELETE EVENT HANDLERS
     # ========================================================================

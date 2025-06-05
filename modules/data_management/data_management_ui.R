@@ -37,6 +37,12 @@ data_management_ui <- function(id) {
           class = "btn-primary",
           icon = icon("plus")
         ),
+        downloadButton(
+          ns("download_excel"),
+          "Export naar Excel",
+          class = "btn-success",
+          icon = icon("file-excel")
+        ),
         actionButton(
           ns("btn_refresh"),
           "Ververs",
