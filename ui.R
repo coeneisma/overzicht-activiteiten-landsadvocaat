@@ -120,11 +120,7 @@ ui <- div(
         
         conditionalPanel(
           condition = "output.user_is_admin == true",
-          div(
-            class = "container-fluid",
-            h1("Systeem Instellingen"),
-            p("Admin functionaliteiten worden binnenkort geladen...", class = "text-muted")
-          )
+          instellingen_ui("instellingen")
         ),
         
         conditionalPanel(

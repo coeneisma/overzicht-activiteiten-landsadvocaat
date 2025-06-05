@@ -317,6 +317,16 @@ tryCatch({
   print(e)
 })
 
+# Instellingen module
+tryCatch({
+  source("modules/instellingen/instellingen_ui.R")
+  source("modules/instellingen/instellingen_server.R")
+  message("✓ Instellingen module loaded successfully")
+}, error = function(e) {
+  warning("❌ Error loading instellingen module: ", e$message)
+  print(e)
+})
+
 # Analytics module
 # source("modules/analytics/analytics_ui.R")
 # source("modules/analytics/analytics_server.R")

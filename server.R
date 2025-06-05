@@ -141,6 +141,27 @@ server <- function(input, output, session) {
   })
   
   # =========================================================================
+  # INSTELLINGEN MODULE 
+  # =========================================================================
+  
+  # Initialize instellingen module (admin only)
+  instellingen_result <- tryCatch({
+    cli_alert_info("Initializing instellingen module...")
+    result <- instellingen_server(
+      "instellingen",
+      login_result$user,
+      login_result$is_admin
+    )
+    cli_alert_success("Instellingen module initialized successfully")
+    result
+  }, error = function(e) {
+    cli_alert_danger("Error initializing instellingen module: {e$message}")
+    cat("Full error details:\n")
+    print(e)
+    NULL
+  })
+  
+  # =========================================================================
   # MAIN NAVIGATION ACTIONS
   # =========================================================================
   

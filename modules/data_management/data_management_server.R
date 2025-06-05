@@ -111,6 +111,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           `Type Dienst` = sapply(`Type Dienst`, function(x) get_weergave_naam("type_dienst", x)),
           Rechtsgebied = sapply(Rechtsgebied, function(x) get_weergave_naam("rechtsgebied", x)),
           Status = sapply(Status, function(x) get_weergave_naam("status_zaak", x)),
+          Directie = sapply(Directie, function(x) get_weergave_naam("aanvragende_directie", x)),
           # Truncate long descriptions
           Omschrijving = ifelse(
             nchar(Omschrijving) > 60, 
@@ -204,6 +205,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         dropdown_choices$type_dienst <- get_dropdown_opties("type_dienst")
         dropdown_choices$rechtsgebied <- get_dropdown_opties("rechtsgebied")
         dropdown_choices$status_zaak <- get_dropdown_opties("status_zaak")
+        dropdown_choices$aanvragende_directie <- get_dropdown_opties("aanvragende_directie")
         
         cli_alert_success("Dropdown choices loaded for form")
         
@@ -238,7 +240,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             ),
             div(class = "col-md-6",
                 strong("Rechtsgebied: "), ifelse(is.na(zaak_data$rechtsgebied), "-", get_weergave_naam("rechtsgebied", zaak_data$rechtsgebied)), br(),
-                strong("Aanvragende Directie: "), ifelse(is.na(zaak_data$aanvragende_directie), "-", zaak_data$aanvragende_directie), br(),
+                strong("Aanvragende Directie: "), ifelse(is.na(zaak_data$aanvragende_directie), "-", get_weergave_naam("aanvragende_directie", zaak_data$aanvragende_directie)), br(),
                 strong("Advocaat: "), ifelse(is.na(zaak_data$advocaat), "-", zaak_data$advocaat), br(),
                 strong("Kantoor: "), ifelse(is.na(zaak_data$adv_kantoor), "-", zaak_data$adv_kantoor)
             )
@@ -335,10 +337,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 rows = 3
               ),
               
-              textInput(
+              selectInput(
                 session$ns("edit_form_aanvragende_directie"),
                 "Aanvragende Directie: *",
-                value = ifelse(is.na(zaak_data$aanvragende_directie), "", zaak_data$aanvragende_directie)
+                choices = c("Selecteer..." = "", dropdown_choices$aanvragende_directie),
+                selected = ifelse(is.na(zaak_data$aanvragende_directie), "", zaak_data$aanvragende_directie)
               )
             ),
             
@@ -503,10 +506,10 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 placeholder = "Korte beschrijving van de zaak..."
               ),
               
-              textInput(
+              selectInput(
                 session$ns("form_aanvragende_directie"),
                 "Aanvragende Directie: *",
-                placeholder = "bijv. VWS, IenW, BZK"
+                choices = c("Selecteer..." = "", dropdown_choices$aanvragende_directie)
               )
             ),
             

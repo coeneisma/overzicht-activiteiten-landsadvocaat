@@ -61,7 +61,8 @@ filters_server <- function(id, raw_data, data_refresh_trigger) {
       tryCatch({
         # Load dropdown options for each category
         dropdown_categories <- c("type_dienst", "rechtsgebied", "type_procedure", "status_zaak",
-                                 "hoedanigheid_partij", "type_wederpartij", "reden_inzet", "civiel_bestuursrecht")
+                                 "hoedanigheid_partij", "type_wederpartij", "reden_inzet", "civiel_bestuursrecht",
+                                 "aanvragende_directie")
         
         for (category in dropdown_categories) {
           choices <- get_dropdown_opties(category)
@@ -74,13 +75,6 @@ filters_server <- function(id, raw_data, data_refresh_trigger) {
         # Load unique values from actual data for non-dropdown fields
         data <- raw_data()
         if (nrow(data) > 0) {
-          
-          # Aanvragende directie choices
-          directie_choices <- sort(unique(data$aanvragende_directie[!is.na(data$aanvragende_directie) & data$aanvragende_directie != ""]))
-          if (length(directie_choices) > 0) {
-            names(directie_choices) <- directie_choices
-            updateSelectInput(session, "aanvragende_directie", choices = c("Alle" = "", directie_choices))
-          }
           
           # Advocaat choices
           advocaat_choices <- sort(unique(data$advocaat[!is.na(data$advocaat) & data$advocaat != ""]))
