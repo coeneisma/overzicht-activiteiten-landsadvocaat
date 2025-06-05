@@ -235,37 +235,7 @@ app_theme <- bs_add_rules(app_theme,
     position: relative !important;
   }
   
-  /* Hide admin-only tabs for non-admin users */
-  .hide-admin-tabs a[data-value='tab_instellingen'] {
-    display: none !important;
-  }
-  
-  .hide-admin-tabs .nav-item:has(a[data-value='tab_instellingen']) {
-    display: none !important;
-  }
-  
-  .hide-admin-tabs .tab-pane[data-value='tab_instellingen'] {
-    display: none !important;
-  }
-  
-  /* For bslib Bootstrap 5 navbar structure */
-  .hide-admin-tabs .navbar-nav a[data-value='tab_instellingen'] {
-    display: none !important;
-  }
-  
-  .hide-admin-tabs .navbar-nav .nav-link[data-value='tab_instellingen'] {
-    display: none !important;
-  }
-  
-  /* Alternative approach - hide the entire nav-item containing the Instellingen link */
-  .hide-admin-tabs .nav-item:has([data-value='tab_instellingen']) {
-    display: none !important;
-  }
-  
-  /* Fallback for browsers that don't support :has() */
-  .hide-admin-tabs [data-value='tab_instellingen'] {
-    display: none !important;
-  }
+  /* Admin-only content styling is now handled via conditionalPanel */
   
   ")
 

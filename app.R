@@ -45,7 +45,7 @@ options(
   shiny.sanitize.errors = FALSE,  # Set to TRUE in production
   
   # Spinner settings
-  spinner.color = "#154273",
+  # spinner.color = "#154273",
   spinner.type = 8,
   
   # DT options

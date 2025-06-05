@@ -47,18 +47,8 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "user_is_admin", suspendWhenHidden = FALSE)
   
-  # Hide/Show Instellingen tab based on admin status using CSS classes
-  observe({
-    if (login_result$authenticated()) {
-      if (login_result$is_admin()) {
-        # Show Instellingen tab for admin users - remove hide class
-        shinyjs::removeClass(selector = "#main_navbar", class = "hide-admin-tabs")
-      } else {
-        # Hide Instellingen tab for regular users - add hide class
-        shinyjs::addClass(selector = "#main_navbar", class = "hide-admin-tabs")
-      }
-    }
-  })
+  # No longer need CSS hiding since we use conditionalPanel
+  # The admin check is handled via output$user_is_admin reactive
   
   # Current user display name
   output$current_user_display <- renderText({

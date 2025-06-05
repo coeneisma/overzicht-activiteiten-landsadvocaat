@@ -32,6 +32,9 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
     # Store original value for editing
     editing_original_waarde <- reactiveVal(NULL)
     
+    # Store username being edited
+    editing_username <- reactiveVal(NULL)
+    
     # ========================================================================
     # USER MANAGEMENT
     # ========================================================================
@@ -970,6 +973,9 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
     
     # Show edit user modal
     show_edit_user_modal <- function(user_data) {
+      # Store username in reactive for later use
+      editing_username(user_data$gebruikersnaam)
+      
       showModal(modalDialog(
         title = paste("Gebruiker Bewerken:", user_data$gebruikersnaam),
         size = "m",
@@ -1103,6 +1109,8 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
     # Edit user cancel
     observeEvent(input$btn_edit_user_cancel, {
       removeModal()
+      # Reset click tracking so user can click same row again
+      last_clicked_user_info(NULL)
     })
     
     # Edit user save
@@ -1138,7 +1146,7 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         con <- get_db_connection()
         on.exit(close_db_connection(con))
         
-        username <- input$edit_user_username
+        username <- editing_username()
         
         # Build update query
         if (!is.null(input$edit_user_password) && input$edit_user_password != "") {
@@ -1177,6 +1185,9 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         # Close modal
         removeModal()
         
+        # Reset click tracking so user can click same row again
+        last_clicked_user_info(NULL)
+        
       }, error = function(e) {
         cli_alert_danger("Error updating user: {e$message}")
         show_notification("Fout bij bijwerken gebruiker", type = "error")
@@ -1186,6 +1197,8 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
     # Edit dropdown cancel
     observeEvent(input$btn_edit_dropdown_cancel, {
       removeModal()
+      # Reset click tracking so user can click same row again
+      last_clicked_dropdown_info(NULL)
     })
     
     # Edit dropdown save
@@ -1265,6 +1278,9 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         
         # Close modal
         removeModal()
+        
+        # Reset click tracking so user can click same row again
+        last_clicked_dropdown_info(NULL)
         
       }, error = function(e) {
         cli_alert_danger("Error updating dropdown value: {e$message}")
