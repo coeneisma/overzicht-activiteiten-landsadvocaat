@@ -359,18 +359,6 @@ filters_ui <- function(id) {
           )
         ),
         
-        # Civiel/Bestuursrecht
-        div(
-          class = "mb-3",
-          selectInput(
-            ns("civiel_bestuursrecht"),
-            "Civiel/Bestuursrecht:",
-            choices = NULL,
-            selected = NULL,
-            multiple = TRUE,
-            width = "100%"
-          )
-        )
       )
     ),
     
@@ -390,19 +378,6 @@ filters_ui <- function(id) {
           icon = icon("filter"),
           width = "100%"
         )
-      )
-    ),
-    
-    # ==========================================================================
-    # FILTER DEBUG INFO (development only)
-    # ==========================================================================
-    
-    conditionalPanel(
-      condition = "!output.production_mode",
-      div(
-        class = "mt-4 p-2 bg-light rounded",
-        div(class = "small text-muted", "Debug Info:"),
-        verbatimTextOutput(ns("filter_debug"), placeholder = TRUE)
       )
     )
   )

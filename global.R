@@ -20,11 +20,11 @@ library(tidyr)
 library(DT)
 library(shinyWidgets)
 library(shinycssloaders)
-library(shinyBS)
 
 # Visualization
 library(plotly)
 library(ggplot2)
+library(RColorBrewer)
 
 # File handling
 library(readxl)
@@ -63,6 +63,9 @@ DEFAULT_ITEMS_PER_PAGE <- 25
 
 # Source database utilities
 source("utils/database.R")
+
+# Add resource path for media files
+addResourcePath("media", "media")
 
 # Test database connectivity at startup
 tryCatch({
@@ -109,6 +112,26 @@ app_theme <- bs_add_rules(app_theme,
     font-size: 1.3em;
   }
   
+  /* Navbar styling to match login screen */
+  .navbar, .navbar-expand-lg, .navbar-light {
+    background-color: #154273 !important;
+    background: #154273 !important;
+  }
+  
+  .navbar-brand, .navbar-nav .nav-link, .navbar-text {
+    color: white !important;
+  }
+  
+  .navbar-toggler {
+    border-color: rgba(255, 255, 255, 0.3) !important;
+  }
+  
+  /* Version number in navbar should be white */
+  .navbar .nav-item .text-muted,
+  .navbar .text-muted {
+    color: white !important;
+  }
+  
   .sidebar {
     background-color: var(--bs-gray-50);
     border-right: 1px solid var(--bs-border-color);
@@ -117,6 +140,7 @@ app_theme <- bs_add_rules(app_theme,
   .card {
     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     border: 1px solid rgba(0, 0, 0, 0.125);
+    overflow: visible !important;
   }
   
   .btn-primary {
@@ -150,8 +174,70 @@ app_theme <- bs_add_rules(app_theme,
   .modal-header .btn-close {
     filter: brightness(0) invert(1);
   }
-  "
-)
+  
+  /* Fix scroll issues */
+  html, body {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    height: auto !important;
+    min-height: 100vh;
+  }
+  
+  .container-fluid {
+    overflow: visible !important;
+  }
+  
+  /* Ensure main content area is scrollable */
+  .tab-content {
+    overflow-y: auto !important;
+    max-height: none !important;
+  }
+  
+  /* Fix potential modal scroll blocking */
+  .modal-open {
+    overflow: hidden !important;
+  }
+  
+  .modal-open .navbar,
+  .modal-open .sidebar {
+    filter: none !important;
+  }
+  
+  /* Fix dropdown overflow in cards - allow dropdowns to extend outside card bounds */
+  
+  .card-body {
+    overflow: visible !important;
+  }
+  
+  /* Specifically for selectize (shiny dropdown) containers */
+  .selectize-control,
+  .selectize-dropdown {
+    z-index: 1050 !important;
+  }
+  
+  .selectize-dropdown {
+    position: absolute !important;
+    max-height: 200px !important;
+    overflow-y: auto !important;
+  }
+  
+  /* Ensure row containers don't clip content */
+  .row {
+    overflow: visible !important;
+  }
+  
+  /* Fix for analyse module filter cards specifically */
+  .analyse-filters .card,
+  .analyse-filters .card-body,
+  .analyse-filters .row,
+  .analyse-filters .col-md-3 {
+    overflow: visible !important;
+    position: relative !important;
+  }
+  
+  /* Admin-only content styling is now handled via conditionalPanel */
+  
+  ")
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -161,7 +247,7 @@ app_theme <- bs_add_rules(app_theme,
 format_currency <- function(x) {
   ifelse(is.na(x) | x == 0, 
          "€ 0", 
-         paste0("€ ", format(x, big.mark = ".", decimal.mark = ",", digits = 0, nsmall = 0)))
+         paste0("€ ", format(x, big.mark = ".", decimal.mark = ",", nsmall = 0, scientific = FALSE)))
 }
 
 #' Format dates for display
@@ -286,15 +372,38 @@ source("modules/filters/filters_ui.R")
 source("modules/filters/filters_server.R")
 
 # Data management module
-source("modules/data_management/data_management_ui.R")
-source("modules/data_management/data_management_server.R")
+tryCatch({
+  source("modules/data_management/data_management_ui.R") 
+  source("modules/data_management/data_management_server.R")
+  message("✓ Data management module (minimal) loaded successfully")
+}, error = function(e) {
+  warning("❌ Error loading data management module: ", e$message)
+  print(e)
+})
 
-# Analytics module
-# source("modules/analytics/analytics_ui.R")
-# source("modules/analytics/analytics_server.R")
+# Instellingen module
+tryCatch({
+  source("modules/instellingen/instellingen_ui.R")
+  source("modules/instellingen/instellingen_server.R")
+  message("✓ Instellingen module loaded successfully")
+}, error = function(e) {
+  warning("❌ Error loading instellingen module: ", e$message)
+  print(e)
+})
+
+# Analyse module
+tryCatch({
+  source("modules/analyse/analyse_ui.R")
+  source("modules/analyse/analyse_server.R")
+  message("✓ Analyse module loaded successfully")
+}, error = function(e) {
+  warning("❌ Error loading analyse module: ", e$message)
+  print(e)
+})
 
 # Export module
 # source("modules/export/export_ui.R")
 # source("modules/export/export_server.R")
+
 
 message("Dashboard Landsadvocaat - Global configuration loaded")

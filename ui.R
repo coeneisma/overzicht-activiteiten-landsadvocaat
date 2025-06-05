@@ -4,7 +4,6 @@
 # Load modules
 source("modules/login/login_ui.R")
 source("modules/filters/filters_ui.R")
-source("modules/data_management/data_management_ui.R")
 
 # Initialize shinyjs
 shinyjs::useShinyjs()
@@ -44,16 +43,16 @@ ui <- div(
             div(
               class = "row text-center",
               div(class = "col-4",
+                  h4(textOutput("stats_total_all", inline = TRUE), class = "text-info"),
+                  div("Totaal", class = "text-muted small")
+              ),
+              div(class = "col-4",
                   h4(textOutput("stats_total_zaken", inline = TRUE), class = "text-primary"),
                   div("Gefilterd", class = "text-muted small")
               ),
               div(class = "col-4", 
                   h4(textOutput("stats_open_zaken", inline = TRUE), class = "text-warning"),
                   div("Open", class = "text-muted small")
-              ),
-              div(class = "col-4",
-                  h4("3", class = "text-info"),
-                  div("Totaal", class = "text-muted small")
               )
             )
           )
@@ -75,38 +74,27 @@ ui <- div(
       # MAIN CONTENT TABS
       # ==========================================================================
       
-      # Dashboard tab
-      nav_panel(
-        title = "Dashboard",
-        icon = icon("chart-line"),
-        value = "tab_dashboard",
-        
-        div(
-          class = "container-fluid",
-          h1("Dashboard Overzicht"),
-          p("Analytics module wordt binnenkort geladen...", class = "text-muted")
-        )
-      ),
-      
-      # Zaakbeheer tab  
+      # Zaakbeheer tab (moved to first position)
       nav_panel(
         title = "Zaakbeheer",
         icon = icon("folder-open"),
         value = "tab_zaakbeheer",
         
-        data_management_ui("data_mgmt")
+        div(
+          class = "container-fluid p-4",
+          data_management_ui("data_mgmt")
+        )
       ),
       
-      # Export tab
+      # Analyse tab
       nav_panel(
-        title = "Export", 
-        icon = icon("file-export"),
-        value = "tab_export",
+        title = "Analyse",
+        icon = icon("chart-line"),
+        value = "tab_analyse",
         
         div(
-          class = "container-fluid",
-          h1("Export & Rapporten"),
-          p("Export module wordt binnenkort geladen...", class = "text-muted")
+          class = "container-fluid p-4",
+          analyse_ui("analyse")
         )
       ),
       
@@ -116,22 +104,37 @@ ui <- div(
         icon = icon("cog"),
         value = "tab_instellingen",
         
-        conditionalPanel(
-          condition = "output.user_is_admin == true",
-          div(
-            class = "container-fluid",
-            h1("Systeem Instellingen"),
-            p("Admin functionaliteiten worden binnenkort geladen...", class = "text-muted")
-          )
-        ),
-        
-        conditionalPanel(
-          condition = "output.user_is_admin != true",
-          div(
-            class = "container-fluid",
+        div(
+          class = "container-fluid p-4",
+          
+          # Show settings for admin users
+          conditionalPanel(
+            condition = "output.user_is_admin == true",
+            instellingen_ui("instellingen")
+          ),
+          
+          # Show access denied message for non-admin users
+          conditionalPanel(
+            condition = "output.user_is_admin != true",
             div(
-              class = "alert alert-warning",
-              icon("lock"), " Alleen administrators hebben toegang tot deze pagina."
+              class = "row mt-5",
+              div(
+                class = "col-md-6 offset-md-3",
+                div(
+                  class = "card",
+                  div(
+                    class = "card-body text-center",
+                    icon("lock", class = "fa-3x text-muted mb-3"),
+                    h4("Geen toegang"),
+                    p(class = "text-muted", 
+                      "Alleen administrators hebben toegang tot de instellingen."
+                    ),
+                    p(class = "text-muted",
+                      "Neem contact op met uw systeembeheerder als u toegang nodig heeft."
+                    )
+                  )
+                )
+              )
             )
           )
         )

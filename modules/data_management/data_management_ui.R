@@ -1,19 +1,19 @@
 # modules/data_management/data_management_ui.R
-# ============================================
+# ===============================================
+# MINIMAL VERSION - Step 1: Basic Data Table Only
 
-#' Data Management Module UI
+#' Data Management Module UI - Minimal
 #' 
-#' Creates interface for viewing, adding, editing, and deleting case data
+#' Creates basic data table interface without complex modals
 #' 
 #' @param id Module namespace ID
-#' @return Shiny UI element with data management interface
+#' @return Shiny UI element with basic data table
 data_management_ui <- function(id) {
   
   # Create namespace function
   ns <- NS(id)
   
-  div(
-    class = "container-fluid",
+  tagList(
     
     # ==========================================================================
     # PAGE HEADER
@@ -22,197 +22,117 @@ data_management_ui <- function(id) {
     div(
       class = "d-flex justify-content-between align-items-center mb-4",
       
-      # Title and description
+      # Title section
       div(
         h1("Zaakbeheer", class = "mb-1"),
-        div(
-          class = "text-muted",
-          "Beheer alle zaken van de landsadvocaat"
-        )
+        p("Overzicht van alle zaken van de landsadvocaat", class = "text-muted mb-0")
       ),
       
-      # Action buttons
+      # Action buttons (placeholder for now)
       div(
         class = "btn-group",
         actionButton(
           ns("btn_nieuwe_zaak"),
           "Nieuwe Zaak",
-          class = "btn-success",
+          class = "btn-primary",
           icon = icon("plus")
         ),
-        actionButton(
-          ns("btn_upload_excel"),
-          "Upload Excel",
-          class = "btn-outline-primary", 
-          icon = icon("upload")
+        downloadButton(
+          ns("download_excel"),
+          "Export naar Excel",
+          class = "btn-success",
+          icon = icon("file-excel")
         ),
         actionButton(
-          ns("btn_export_excel"),
-          "Export Excel",
+          ns("btn_refresh"),
+          "Ververs",
           class = "btn-outline-secondary",
-          icon = icon("download")
+          icon = icon("sync-alt")
         )
       )
     ),
     
     # ==========================================================================
-    # SUMMARY CARDS
+    # SUMMARY STATISTICS
     # ==========================================================================
     
     div(
       class = "row mb-4",
       
-      # Total cases card
+      # Total cases
       div(
         class = "col-md-3",
         card(
           card_body(
             class = "text-center",
-            h3(textOutput(ns("total_count"), inline = TRUE), class = "text-primary mb-1"),
-            div("Totaal Zaken", class = "text-muted small"),
-            div(
-              class = "mt-2 small text-muted",
-              "Alle actieve zaken"
-            )
+            h3(textOutput(ns("stat_total"), inline = TRUE), class = "text-primary mb-1"),
+            div("Totaal Zaken", class = "text-muted small")
           )
         )
       ),
       
-      # Filtered count card
+      # Filtered cases
       div(
         class = "col-md-3",
         card(
           card_body(
             class = "text-center",
-            h3(textOutput(ns("filtered_count"), inline = TRUE), class = "text-info mb-1"),
-            div("Gefilterd", class = "text-muted small"),
-            div(
-              class = "mt-2 small text-muted",
-              "Na filters"
-            )
+            h3(textOutput(ns("stat_filtered"), inline = TRUE), class = "text-info mb-1"),
+            div("Gefilterd", class = "text-muted small")
           )
         )
       ),
       
-      # Open cases card
+      # Open cases
       div(
         class = "col-md-3",
         card(
           card_body(
             class = "text-center",
-            h3(textOutput(ns("open_count"), inline = TRUE), class = "text-warning mb-1"),
-            div("Open", class = "text-muted small"),
-            div(
-              class = "mt-2 small text-muted",
-              "Nog in behandeling"
-            )
+            h3(textOutput(ns("stat_open"), inline = TRUE), class = "text-warning mb-1"),
+            div("Open", class = "text-muted small")
           )
         )
       ),
       
-      # Recent cases card
+      # Recent cases (this month)
       div(
         class = "col-md-3",
         card(
           card_body(
             class = "text-center",
-            h3(textOutput(ns("recent_count"), inline = TRUE), class = "text-success mb-1"),
-            div("Recent", class = "text-muted small"),
-            div(
-              class = "mt-2 small text-muted",
-              "Laatste 30 dagen"
-            )
+            h3(textOutput(ns("stat_recent"), inline = TRUE), class = "text-success mb-1"),
+            div("Deze Maand", class = "text-muted small")
           )
         )
       )
     ),
     
     # ==========================================================================
-    # BULK ACTIONS BAR (shown when rows selected)
-    # ==========================================================================
-    
-    conditionalPanel(
-      condition = paste0("output['", ns("has_selected_rows"), "'] == true"),
-      div(
-        class = "alert alert-info mb-3",
-        div(
-          class = "d-flex justify-content-between align-items-center",
-          div(
-            icon("check-square"), " ",
-            textOutput(ns("selected_count"), inline = TRUE),
-            " zaak(zaken) geselecteerd"
-          ),
-          div(
-            class = "btn-group btn-group-sm",
-            actionButton(
-              ns("btn_bulk_edit"),
-              "Bulk Bewerken",
-              class = "btn-warning",
-              icon = icon("edit")
-            ),
-            actionButton(
-              ns("btn_bulk_delete"),
-              "Verwijderen",
-              class = "btn-danger",
-              icon = icon("trash")
-            ),
-            actionButton(
-              ns("btn_clear_selection"),
-              "Selectie Wissen",
-              class = "btn-outline-secondary",
-              icon = icon("times")
-            )
-          )
-        )
-      )
-    ),
-    
-    # ==========================================================================
-    # DATA TABLE
+    # BASIC DATA TABLE
     # ==========================================================================
     
     card(
       card_header(
+        class = "d-flex justify-content-between align-items-center",
+        
+        # Table title
         div(
-          class = "d-flex justify-content-between align-items-center",
-          div(
-            h5("Zaakoverzicht", class = "mb-0"),
-            div(
-              class = "small text-muted",
-              "Klik op een rij om details te zien, dubbelklik om te bewerken"
-            )
-          ),
-          div(
-            class = "btn-group btn-group-sm",
-            actionButton(
-              ns("btn_refresh"),
-              "Vernieuwen",
-              class = "btn-outline-primary",
-              icon = icon("refresh")
-            ),
-            dropdownButton(
-              tags$h6("Kolommen tonen/verbergen"),
-              checkboxGroupInput(
-                ns("visible_columns"),
-                NULL,
-                choices = NULL,  # Will be set by server
-                selected = NULL,
-                width = "200px"
-              ),
-              circle = FALSE,
-              status = "primary",
-              icon = icon("columns"),
-              width = "250px",
-              tooltip = tooltipOptions(title = "Kolommen beheren")
-            )
-          )
+          h5("Zaken Overzicht", class = "mb-0"),
+          div(class = "small text-muted", "Klik op een zaak voor details, dubbelklik om te bewerken")
+        ),
+        
+        # Simple status indicator
+        div(
+          class = "small text-muted",
+          "Laatst bijgewerkt: ", textOutput(ns("last_updated"), inline = TRUE)
         )
       ),
       
       card_body(
         class = "p-0",
         
-        # Loading indicator
+        # Basic data table with spinner
         withSpinner(
           DT::dataTableOutput(ns("zaken_table")),
           type = 8,
@@ -222,192 +142,17 @@ data_management_ui <- function(id) {
     ),
     
     # ==========================================================================
-    # MODALS
+    # ZAAK DETAILS MODAL (READ-ONLY)
     # ==========================================================================
     
-    # Modal for new/edit case
-    bsModal(
-      id = ns("modal_case_form"),
-      title = "Zaak Details",
-      trigger = "",  # Programmatically triggered
-      size = "large",
-      
-      # Form content will be generated by server
-      div(
-        id = ns("case_form_content"),
-        div(
-          class = "text-center p-4",
-          icon("spinner", class = "fa-spin fa-2x"),
-          br(), br(),
-          "Formulier wordt geladen..."
-        )
-      ),
-      
-      # Modal footer with action buttons
-      div(
-        class = "modal-footer",
-        actionButton(
-          ns("btn_save_case"),
-          "Opslaan",
-          class = "btn-primary",
-          icon = icon("save")
-        ),
-        actionButton(
-          ns("btn_cancel_form"),
-          "Annuleren",
-          class = "btn-secondary",
-          `data-dismiss` = "modal"
-        )
-      )
-    ),
+    # This modal is created dynamically by server when row is clicked
     
-    # Modal for case details (read-only)
-    bsModal(
-      id = ns("modal_case_details"),
-      title = "Zaak Details (Alleen Lezen)",
-      trigger = "",
-      size = "large",
-      
-      div(
-        id = ns("case_details_content"),
-        div(
-          class = "text-center p-4",
-          "Details worden geladen..."
-        )
-      ),
-      
-      div(
-        class = "modal-footer",
-        actionButton(
-          ns("btn_edit_from_details"),
-          "Bewerken",
-          class = "btn-primary",
-          icon = icon("edit")
-        ),
-        actionButton(
-          ns("btn_close_details"),
-          "Sluiten",
-          class = "btn-secondary",
-          `data-dismiss` = "modal"
-        )
-      )
-    ),
+    # ==========================================================================
+    # ZAAK BEWERKEN MODAL
+    # ==========================================================================
     
-    # Modal for Excel upload
-    bsModal(
-      id = ns("modal_upload"),
-      title = "Excel Bestand Uploaden",
-      trigger = "",
-      size = "medium",
-      
-      div(
-        class = "p-3",
-        
-        # Upload instructions
-        div(
-          class = "alert alert-info",
-          h6("Upload Instructies:", class = "alert-heading"),
-          tags$ul(
-            tags$li("Ondersteunde formaten: .xlsx, .xls"),
-            tags$li("Maximale bestandsgrootte: 10MB"),
-            tags$li("Eerste rij moet kolomnamen bevatten"),
-            tags$li("Verplichte kolommen worden gevalideerd")
-          )
-        ),
-        
-        # File input
-        fileInput(
-          ns("upload_file"),
-          "Selecteer Excel bestand:",
-          accept = c(".xlsx", ".xls"),
-          width = "100%"
-        ),
-        
-        # Upload progress
-        conditionalPanel(
-          condition = paste0("output['", ns("upload_in_progress"), "'] == true"),
-          div(
-            class = "mt-3",
-            h6("Upload Voortgang:"),
-            progressBar(
-              id = ns("upload_progress"),
-              value = 0,
-              status = "info",
-              striped = TRUE
-            )
-          )
-        ),
-        
-        # Upload preview
-        conditionalPanel(
-          condition = paste0("output['", ns("upload_has_preview"), "'] == true"),
-          div(
-            class = "mt-3",
-            h6("Preview (eerste 5 rijen):"),
-            withSpinner(
-              DT::dataTableOutput(ns("upload_preview")),
-              type = 8
-            )
-          )
-        )
-      ),
-      
-      div(
-        class = "modal-footer",
-        actionButton(
-          ns("btn_process_upload"),
-          "Importeren",
-          class = "btn-success",
-          icon = icon("check"),
-          disabled = TRUE
-        ),
-        actionButton(
-          ns("btn_cancel_upload"),
-          "Annuleren",
-          class = "btn-secondary",
-          `data-dismiss` = "modal"
-        )
-      )
-    ),
+    # This modal is created dynamically by server when edit is clicked
     
-    # Confirmation modal for deletions
-    bsModal(
-      id = ns("modal_confirm_delete"),
-      title = "Bevestig Verwijdering",
-      trigger = "",
-      size = "medium",
-      
-      div(
-        class = "p-3",
-        div(
-          class = "alert alert-danger",
-          icon("exclamation-triangle"), " ",
-          tags$strong("Waarschuwing!"),
-          br(),
-          "Deze actie kan niet ongedaan worden gemaakt."
-        ),
-        
-        div(
-          id = ns("delete_confirmation_text"),
-          "Weet je zeker dat je de geselecteerde zaak(zaken) wilt verwijderen?"
-        )
-      ),
-      
-      div(
-        class = "modal-footer",
-        actionButton(
-          ns("btn_confirm_delete"),
-          "Ja, Verwijderen",
-          class = "btn-danger",
-          icon = icon("trash")
-        ),
-        actionButton(
-          ns("btn_cancel_delete"),
-          "Annuleren",
-          class = "btn-secondary",
-          `data-dismiss` = "modal"
-        )
-      )
-    )
+    # Note: Both modals are created dynamically by server for better state management
   )
 }

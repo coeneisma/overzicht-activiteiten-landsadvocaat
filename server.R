@@ -4,7 +4,6 @@
 # Load modules
 source("modules/login/login_server.R")
 source("modules/filters/filters_server.R")
-source("modules/data_management/data_management_server.R")
 
 # =============================================================================
 # SERVER FUNCTION
@@ -21,6 +20,9 @@ server <- function(input, output, session) {
   
   # Data refresh trigger (incremented when data changes)
   data_refresh_trigger <- reactiveVal(0)
+  
+  # Dropdown refresh trigger (for filter dropdown updates)
+  dropdown_refresh_trigger <- reactiveVal(0)
   
   # =========================================================================
   # LOGIN MODULE
@@ -44,6 +46,9 @@ server <- function(input, output, session) {
     login_result$is_admin()
   })
   outputOptions(output, "user_is_admin", suspendWhenHidden = FALSE)
+  
+  # No longer need CSS hiding since we use conditionalPanel
+  # The admin check is handled via output$user_is_admin reactive
   
   # Current user display name
   output$current_user_display <- renderText({
@@ -73,28 +78,39 @@ server <- function(input, output, session) {
   })
   
   # =========================================================================
-  # SIDEBAR STATISTICS
+  # SIDEBAR STATISTICS (updated to use filter module result)
   # =========================================================================
   
   # Total number of cases (filtered)
   output$stats_total_zaken <- renderText({
     req(login_result$authenticated())
-    data <- filtered_data()
-    if (nrow(data) == 0) return("0")
+    data <- filtered_data()  # Now uses the variable from filter module
+    if (is.null(data) || nrow(data) == 0) return("0")
     
     # Exclude deleted cases
     active_data <- data[data$status_zaak != "Verwijderd", ]
-    format(nrow(active_data), big.mark = ".")
+    format(nrow(active_data), big.mark = " ")  # Use space instead of dot
   })
   
   # Number of open cases (filtered)
   output$stats_open_zaken <- renderText({
     req(login_result$authenticated())
-    data <- filtered_data()
-    if (nrow(data) == 0) return("0")
+    data <- filtered_data()  # Now uses the variable from filter module
+    if (is.null(data) || nrow(data) == 0) return("0")
     
     open_cases <- sum(data$status_zaak %in% c("Open", "In_behandeling"), na.rm = TRUE)
-    format(open_cases, big.mark = ".")
+    format(open_cases, big.mark = " ")  # Use space instead of dot
+  })
+  
+  # Total number of cases (unfiltered - all data in database)
+  output$stats_total_all <- renderText({
+    req(login_result$authenticated())
+    data <- raw_data()  # Use raw unfiltered data
+    if (is.null(data) || nrow(data) == 0) return("0")
+    
+    # Exclude deleted cases
+    active_data <- data[data$status_zaak != "Verwijderd", ]
+    format(nrow(active_data), big.mark = " ")  # Use space instead of dot
   })
   
   # =========================================================================
@@ -102,24 +118,79 @@ server <- function(input, output, session) {
   # =========================================================================
   
   # Initialize filter module (always, but data only loads after login)
-  filter_result <- filters_server("filters", raw_data, data_refresh_trigger)
+  filter_result <- filters_server("filters", raw_data, data_refresh_trigger, dropdown_refresh_trigger)
   
-  # Get filtered data
+  # Get filtered data from filter module
   filtered_data <- filter_result$filtered_data
   
   # =========================================================================
-  # DATA MANAGEMENT MODULE
+  # DATA MANAGEMENT MODULE (MINIMAL VERSION)
   # =========================================================================
   
-  # Initialize data management module
-  observeEvent(login_result$authenticated(), {
-    if (login_result$authenticated()) {
-      data_management_server("data_mgmt", filtered_data, raw_data, 
-                             login_result$user, function() {
-                               data_refresh_trigger(data_refresh_trigger() + 1)
-                             })
-    }
-  }, once = TRUE)
+  # Initialize minimal data management module
+  data_mgmt_result <- tryCatch({
+    cli_alert_info("Initializing minimal data management module...")
+    result <- data_management_server(
+      "data_mgmt", 
+      filtered_data, 
+      raw_data, 
+      data_refresh_trigger, 
+      login_result$user,
+      dropdown_refresh_trigger
+    )
+    cli_alert_success("Minimal data management module initialized successfully")
+    result
+  }, error = function(e) {
+    cli_alert_danger("Error initializing data management module: {e$message}")
+    cat("Full error details:\n")
+    print(e)
+    NULL
+  })
+  
+  # =========================================================================
+  # INSTELLINGEN MODULE 
+  # =========================================================================
+  
+  # Initialize instellingen module (admin only)
+  instellingen_result <- tryCatch({
+    cli_alert_info("Initializing instellingen module...")
+    result <- instellingen_server(
+      "instellingen",
+      login_result$user,
+      login_result$is_admin,
+      dropdown_refresh_trigger
+    )
+    cli_alert_success("Instellingen module initialized successfully")
+    result
+  }, error = function(e) {
+    cli_alert_danger("Error initializing instellingen module: {e$message}")
+    cat("Full error details:\n")
+    print(e)
+    NULL
+  })
+  
+  # =========================================================================
+  # ANALYSE MODULE
+  # =========================================================================
+  
+  # Initialize analyse module
+  analyse_result <- tryCatch({
+    cli_alert_info("Initializing analyse module...")
+    result <- analyse_server(
+      "analyse",
+      filtered_data,
+      raw_data,
+      data_refresh_trigger,
+      login_result$user
+    )
+    cli_alert_success("Analyse module initialized successfully")
+    result
+  }, error = function(e) {
+    cli_alert_danger("Error initializing analyse module: {e$message}")
+    cat("Full error details:\n")
+    print(e)
+    NULL
+  })
   
   # =========================================================================
   # MAIN NAVIGATION ACTIONS
@@ -145,10 +216,10 @@ server <- function(input, output, session) {
   # TAB CONTENT PLACEHOLDERS
   # =========================================================================
   
-  # Dashboard tab - show when user switches to it
+  # Analyse tab - show when user switches to it
   observeEvent(input$main_navbar, {
-    if (input$main_navbar == "tab_dashboard" && login_result$authenticated()) {
-      cli_alert_info("User navigated to Dashboard tab")
+    if (input$main_navbar == "tab_analyse" && login_result$authenticated()) {
+      cli_alert_info("User navigated to Analyse tab")
     }
   })
   
@@ -212,6 +283,12 @@ server <- function(input, output, session) {
   refresh_data <- function() {
     cli_alert_info("Data refresh triggered")
     data_refresh_trigger(data_refresh_trigger() + 1)
+  }
+  
+  # Dropdown refresh function (for dropdown updates)
+  refresh_dropdowns <- function() {
+    cli_alert_info("Dropdown refresh triggered")
+    dropdown_refresh_trigger(dropdown_refresh_trigger() + 1)
   }
   
   # =========================================================================

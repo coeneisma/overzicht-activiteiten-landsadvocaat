@@ -45,7 +45,11 @@ login_ui <- function(id) {
           # App logo/icon
           div(
             class = "mb-3",
-            icon("shield-halved", class = "fa-3x")
+            tags$img(
+              src = "media/OCW_Logo.png",
+              alt = "OCW Logo",
+              style = "height: 60px; max-width: 200px; object-fit: contain;"
+            )
           ),
           
           # Title

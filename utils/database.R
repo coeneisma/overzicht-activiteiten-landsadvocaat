@@ -208,7 +208,7 @@ tbl_gebruikers <- function(con = NULL) {
 # =============================================================================
 
 #' Krijg alle opties voor een dropdown categorie
-get_dropdown_opties <- function(categorie, actief_alleen = TRUE) {
+get_dropdown_opties <- function(categorie, actief_alleen = TRUE, exclude_fallback = TRUE) {
   
   con <- get_db_connection()
   on.exit(close_db_connection(con))
@@ -220,17 +220,51 @@ get_dropdown_opties <- function(categorie, actief_alleen = TRUE) {
     query <- query %>% filter(actief == 1)
   }
   
+  # Exclude fallback values (niet_ingesteld) voor selecteerbare dropdowns
+  if (exclude_fallback) {
+    query <- query %>% filter(waarde != "niet_ingesteld")
+  }
+  
   result <- query %>%
-    arrange(volgorde, waarde) %>%
     select(waarde, weergave_naam) %>%
     collect()
   
   # Gebruik weergave_naam als die bestaat, anders waarde
-  opties <- ifelse(is.na(result$weergave_naam) | result$weergave_naam == "", 
+  labels <- ifelse(is.na(result$weergave_naam) | result$weergave_naam == "", 
                    result$waarde, result$weergave_naam)
-  names(opties) <- result$waarde
+  opties <- result$waarde
+  names(opties) <- labels
+  
+  # Sorteer alfabetisch op labels (weergave namen)
+  opties <- opties[order(names(opties))]
   
   return(opties)
+}
+
+#' Converteer database waarde naar weergave naam
+get_weergave_naam <- function(categorie, waarde) {
+  if (is.na(waarde) || is.null(waarde) || waarde == "") {
+    return(waarde)
+  }
+  
+  # Special handling for fallback value
+  if (waarde == "niet_ingesteld") {
+    return("Niet ingesteld")
+  }
+  
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  result <- tbl_dropdown_opties(con) %>%
+    filter(categorie == !!categorie, waarde == !!waarde) %>%
+    select(weergave_naam) %>%
+    collect()
+  
+  if (nrow(result) > 0 && !is.na(result$weergave_naam) && result$weergave_naam != "") {
+    return(result$weergave_naam)
+  } else {
+    return(waarde)  # Fallback naar originele waarde
+  }
 }
 
 #' Voeg dropdown optie toe
@@ -250,6 +284,77 @@ add_dropdown_optie <- function(categorie, waarde, weergave_naam = NULL,
   )
   
   DBI::dbAppendTable(con, "dropdown_opties", nieuwe_optie)
+}
+
+#' Verwijder dropdown optie met vervanging voor zaken in gebruik
+verwijder_dropdown_optie <- function(categorie, waarde, gebruiker = "system") {
+  
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  tryCatch({
+    # Start transactie
+    DBI::dbBegin(con)
+    
+    # 1. Zoek kolom naam voor deze categorie in zaken tabel
+    kolom_mapping <- list(
+      "type_dienst" = "type_dienst",
+      "rechtsgebied" = "rechtsgebied", 
+      "status_zaak" = "status_zaak",
+      "aanvragende_directie" = "aanvragende_directie",
+      "type_wederpartij" = "type_wederpartij",
+      "reden_inzet" = "reden_inzet",
+      "hoedanigheid_partij" = "hoedanigheid_partij"
+    )
+    
+    kolom_naam <- kolom_mapping[[categorie]]
+    if (is.null(kolom_naam)) {
+      stop(paste("Onbekende categorie:", categorie))
+    }
+    
+    # 2. Check of waarde in gebruik is in zaken
+    query <- paste0("SELECT COUNT(*) as count FROM zaken WHERE ", kolom_naam, " = ?")
+    gebruik_count <- DBI::dbGetQuery(con, query, list(waarde))$count
+    
+    # 3. Als in gebruik, vervang door "niet_ingesteld" 
+    if (gebruik_count > 0) {
+      # Voeg "niet_ingesteld" optie toe als deze nog niet bestaat
+      bestaande_niet_ingesteld <- DBI::dbGetQuery(con, "
+        SELECT COUNT(*) as count FROM dropdown_opties 
+        WHERE categorie = ? AND waarde = 'niet_ingesteld'
+      ", list(categorie))$count
+      
+      if (bestaande_niet_ingesteld == 0) {
+        DBI::dbExecute(con, "
+          INSERT INTO dropdown_opties (categorie, waarde, weergave_naam, volgorde, aangemaakt_door, actief)
+          VALUES (?, 'niet_ingesteld', 'Niet ingesteld', -1, ?, 0)
+        ", list(categorie, gebruiker))
+      }
+      
+      # Update alle zaken die deze waarde gebruiken
+      update_query <- paste0("UPDATE zaken SET ", kolom_naam, " = 'niet_ingesteld' WHERE ", kolom_naam, " = ?")
+      DBI::dbExecute(con, update_query, list(waarde))
+    }
+    
+    # 4. Verwijder de dropdown optie
+    rows_deleted <- DBI::dbExecute(con, "
+      DELETE FROM dropdown_opties 
+      WHERE categorie = ? AND waarde = ?
+    ", list(categorie, waarde))
+    
+    # Debug info
+    message("Deleted ", rows_deleted, " rows for categorie='", categorie, "', waarde='", waarde, "'")
+    
+    # Commit transactie
+    DBI::dbCommit(con)
+    
+    return(list(success = TRUE, zaken_updated = gebruik_count))
+    
+  }, error = function(e) {
+    # Rollback bij fout
+    DBI::dbRollback(con)
+    return(list(success = FALSE, error = e$message))
+  })
 }
 
 # =============================================================================
@@ -281,7 +386,33 @@ lees_zaken <- function(filters = list(), con = NULL) {
   # Converteer datum kolommen
   if (nrow(result) > 0) {
     result$datum_aanmaak <- as.Date(result$datum_aanmaak)
-    result$laatst_gewijzigd <- as.POSIXct(result$laatst_gewijzigd)
+    
+    # Robuuste conversie van laatst_gewijzigd met verschillende formaten
+    result$laatst_gewijzigd <- tryCatch({
+      # Probeer eerst standaard POSIXct conversie
+      as.POSIXct(result$laatst_gewijzigd)
+    }, error = function(e) {
+      # Als dat faalt, probeer verschillende formaten
+      sapply(result$laatst_gewijzigd, function(x) {
+        if (is.na(x) || x == "") return(as.POSIXct(NA))
+        
+        # Probeer verschillende datetime formaten
+        formats <- c(
+          "%Y-%m-%d %H:%M:%S",
+          "%Y-%m-%d %H:%M:%S.%f",
+          "%Y-%m-%d %H:%M",
+          "%Y-%m-%d"
+        )
+        
+        for (fmt in formats) {
+          result <- tryCatch(as.POSIXct(x, format = fmt), error = function(e) NULL)
+          if (!is.null(result) && !is.na(result)) return(result)
+        }
+        
+        # Als alles faalt, return huidige tijd
+        return(Sys.time())
+      })
+    })
   }
   
   return(result)
@@ -329,14 +460,20 @@ verwijder_zaak <- function(zaak_id, hard_delete = FALSE) {
   con <- get_db_connection()
   on.exit(close_db_connection(con))
   
-  if (hard_delete) {
-    DBI::dbExecute(con, "DELETE FROM zaken WHERE zaak_id = ?", params = list(zaak_id))
-  } else {
-    # Soft delete - verander status naar 'Verwijderd'
-    DBI::dbExecute(con, 
-                   "UPDATE zaken SET status_zaak = 'Verwijderd', laatst_gewijzigd = ? WHERE zaak_id = ?",
-                   params = list(Sys.time(), zaak_id))
-  }
+  tryCatch({
+    if (hard_delete) {
+      result <- DBI::dbExecute(con, "DELETE FROM zaken WHERE zaak_id = ?", params = list(zaak_id))
+    } else {
+      # Soft delete - verander status naar 'Verwijderd'
+      result <- DBI::dbExecute(con, 
+                     "UPDATE zaken SET status_zaak = 'Verwijderd', laatst_gewijzigd = ? WHERE zaak_id = ?",
+                     params = list(Sys.time(), zaak_id))
+    }
+    return(result > 0)  # Return TRUE if rows were affected
+  }, error = function(e) {
+    warning("Error deleting zaak ", zaak_id, ": ", e$message)
+    return(FALSE)
+  })
 }
 
 # =============================================================================
@@ -387,4 +524,40 @@ voeg_gebruiker_toe <- function(gebruikersnaam, wachtwoord, volledige_naam = NULL
   )
   
   DBI::dbAppendTable(con, "gebruikers", nieuwe_gebruiker)
+}
+
+# =============================================================================
+# AUTOCOMPLETE HELPER FUNCTIES
+# =============================================================================
+
+#' Haal unieke advocaten op voor autocomplete
+#' @return Character vector met unieke advocaat namen
+get_advocaten_autocomplete <- function() {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  advocaten <- tbl(con, "zaken") %>%
+    filter(!is.na(advocaat), advocaat != "") %>%
+    distinct(advocaat) %>%
+    arrange(advocaat) %>%
+    collect() %>%
+    pull(advocaat)
+  
+  return(advocaten)
+}
+
+#' Haal unieke advocatenkantoren op voor autocomplete  
+#' @return Character vector met unieke kantoor namen
+get_advocatenkantoren_autocomplete <- function() {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  kantoren <- tbl(con, "zaken") %>%
+    filter(!is.na(adv_kantoor), adv_kantoor != "") %>%
+    distinct(adv_kantoor) %>%
+    arrange(adv_kantoor) %>%
+    collect() %>%
+    pull(adv_kantoor)
+  
+  return(kantoren)
 }
