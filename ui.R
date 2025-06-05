@@ -74,20 +74,7 @@ ui <- div(
       # MAIN CONTENT TABS
       # ==========================================================================
       
-      # Dashboard tab
-      nav_panel(
-        title = "Dashboard",
-        icon = icon("chart-line"),
-        value = "tab_dashboard",
-        
-        div(
-          class = "container-fluid",
-          h1("Dashboard Overzicht"),
-          p("Analytics module wordt binnenkort geladen...", class = "text-muted")
-        )
-      ),
-      
-      # Zaakbeheer tab  
+      # Zaakbeheer tab (moved to first position)
       nav_panel(
         title = "Zaakbeheer",
         icon = icon("folder-open"),
@@ -96,6 +83,19 @@ ui <- div(
         div(
           class = "container-fluid p-4",
           data_management_ui("data_mgmt")
+        )
+      ),
+      
+      # Analyse tab (renamed from Dashboard)
+      nav_panel(
+        title = "Analyse",
+        icon = icon("chart-line"),
+        value = "tab_dashboard",
+        
+        div(
+          class = "container-fluid",
+          h1("Analyse Overzicht"),
+          p("Analytics module wordt binnenkort geladen...", class = "text-muted")
         )
       ),
       

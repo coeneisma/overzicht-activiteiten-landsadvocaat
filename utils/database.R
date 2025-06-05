@@ -525,3 +525,39 @@ voeg_gebruiker_toe <- function(gebruikersnaam, wachtwoord, volledige_naam = NULL
   
   DBI::dbAppendTable(con, "gebruikers", nieuwe_gebruiker)
 }
+
+# =============================================================================
+# AUTOCOMPLETE HELPER FUNCTIES
+# =============================================================================
+
+#' Haal unieke advocaten op voor autocomplete
+#' @return Character vector met unieke advocaat namen
+get_advocaten_autocomplete <- function() {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  advocaten <- tbl(con, "zaken") %>%
+    filter(!is.na(advocaat), advocaat != "") %>%
+    distinct(advocaat) %>%
+    arrange(advocaat) %>%
+    collect() %>%
+    pull(advocaat)
+  
+  return(advocaten)
+}
+
+#' Haal unieke advocatenkantoren op voor autocomplete  
+#' @return Character vector met unieke kantoor namen
+get_advocatenkantoren_autocomplete <- function() {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  kantoren <- tbl(con, "zaken") %>%
+    filter(!is.na(adv_kantoor), adv_kantoor != "") %>%
+    distinct(adv_kantoor) %>%
+    arrange(adv_kantoor) %>%
+    collect() %>%
+    pull(adv_kantoor)
+  
+  return(kantoren)
+}

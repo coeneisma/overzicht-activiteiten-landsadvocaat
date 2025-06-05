@@ -99,6 +99,12 @@ The application uses Bootstrap 5 with OCW government branding. Maintain professi
 - Hash passwords using the existing digest implementation
 - Respect role-based access controls throughout the application
 
+### Git Commit Guidelines
+- Write commit messages in Dutch
+- Do not include Claude Code attribution in commit messages
+- Focus on clear, concise descriptions of what was changed and why
+- Use conventional commit format when appropriate (feat:, fix:, docs:, etc.)
+
 ## Technology Stack
 
 **Core**: R Shiny with bslib (Bootstrap 5), DT for tables, shinyWidgets for enhanced UI

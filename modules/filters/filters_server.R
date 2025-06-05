@@ -263,18 +263,6 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
     })
     outputOptions(output, "show_apply_button", suspendWhenHidden = FALSE)
     
-    # Debug info (development)
-    output$filter_debug <- renderText({
-      active <- active_filters()
-      active_names <- names(active)[unlist(active)]
-      
-      if (length(active_names) > 0) {
-        paste("Actieve filters:", paste(active_names, collapse = ", "))
-      } else {
-        "Geen actieve filters"
-      }
-    })
-    
     # ========================================================================
     # RESET FILTERS
     # ========================================================================

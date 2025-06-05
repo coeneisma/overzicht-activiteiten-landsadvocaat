@@ -24,6 +24,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
     # Store the original zaak_id when editing
     original_zaak_id <- reactiveVal(NULL)
     
+    
     # ========================================================================
     # SUMMARY STATISTICS
     # ========================================================================
@@ -104,7 +105,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           "Rechtsgebied" = rechtsgebied,
           "Status" = status_zaak,
           "Directie" = aanvragende_directie,
-          "Advocaat" = advocaat
+          "Advocaat" = advocaat,
+          "Kantoor" = adv_kantoor
         ) %>%
         mutate(
           Datum = format_date_nl(Datum),
@@ -131,6 +133,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           scrollX = TRUE,
           autoWidth = FALSE,
           dom = 'frtip',  # Simple layout: filter, table, info, pagination
+          columnDefs = list(
+            list(className = "dt-left", targets = "_all")  # Left align all columns
+          ),
           language = list(
             search = "Zoeken:",
             lengthMenu = "Toon _MENU_ items per pagina",
@@ -387,7 +392,15 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               textInput(
                 session$ns("edit_form_advocaat"),
                 "Advocaat:",
-                value = ifelse(is.na(zaak_data$advocaat), "", zaak_data$advocaat)
+                value = ifelse(is.na(zaak_data$advocaat), "", zaak_data$advocaat),
+                placeholder = "Naam van de advocaat"
+              ),
+              
+              textInput(
+                session$ns("edit_form_adv_kantoor"),
+                "Advocatenkantoor:",
+                value = ifelse(is.na(zaak_data$adv_kantoor), "", zaak_data$adv_kantoor),
+                placeholder = "Naam van het kantoor"
               )
             )
           ),
@@ -553,6 +566,12 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 session$ns("form_advocaat"),
                 "Advocaat:",
                 placeholder = "Naam van de advocaat"
+              ),
+              
+              textInput(
+                session$ns("form_adv_kantoor"),
+                "Advocatenkantoor:",
+                placeholder = "Naam van het kantoor"
               )
             )
           ),
@@ -860,7 +879,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           type_dienst = input$edit_form_type_dienst,
           rechtsgebied = input$edit_form_rechtsgebied,
           status_zaak = input$edit_form_status_zaak,
-          advocaat = if(is.null(input$edit_form_advocaat) || input$edit_form_advocaat == "") NA else input$edit_form_advocaat,
+          advocaat = if(is.null(input$edit_form_advocaat) || input$edit_form_advocaat == "" || trimws(input$edit_form_advocaat) == "") NA else trimws(input$edit_form_advocaat),
+          adv_kantoor = if(is.null(input$edit_form_adv_kantoor) || input$edit_form_adv_kantoor == "" || trimws(input$edit_form_adv_kantoor) == "") NA else trimws(input$edit_form_adv_kantoor),
           la_budget_wjz = if(is.null(input$edit_form_la_budget_wjz)) 0 else input$edit_form_la_budget_wjz,
           budget_andere_directie = if(is.null(input$edit_form_budget_andere_directie)) 0 else input$edit_form_budget_andere_directie,
           financieel_risico = if(is.null(input$edit_form_financieel_risico)) 0 else input$edit_form_financieel_risico,
@@ -886,6 +906,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               rechtsgebied = ?,
               status_zaak = ?,
               advocaat = ?,
+              adv_kantoor = ?,
               la_budget_wjz = ?,
               budget_andere_directie = ?,
               financieel_risico = ?,
@@ -902,6 +923,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             updated_data$rechtsgebied,
             updated_data$status_zaak,
             updated_data$advocaat,
+            updated_data$adv_kantoor,
             updated_data$la_budget_wjz,
             updated_data$budget_andere_directie,
             updated_data$financieel_risico,
@@ -1032,7 +1054,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           type_dienst = input$form_type_dienst,
           rechtsgebied = input$form_rechtsgebied,
           status_zaak = input$form_status_zaak,
-          advocaat = if(is.null(input$form_advocaat) || input$form_advocaat == "") NA else input$form_advocaat,
+          advocaat = if(is.null(input$form_advocaat) || input$form_advocaat == "" || trimws(input$form_advocaat) == "") NA else trimws(input$form_advocaat),
+          adv_kantoor = if(is.null(input$form_adv_kantoor) || input$form_adv_kantoor == "" || trimws(input$form_adv_kantoor) == "") NA else trimws(input$form_adv_kantoor),
           la_budget_wjz = if(is.null(input$form_la_budget_wjz)) 0 else input$form_la_budget_wjz,
           budget_andere_directie = if(is.null(input$form_budget_andere_directie)) 0 else input$form_budget_andere_directie,
           financieel_risico = if(is.null(input$form_financieel_risico)) 0 else input$form_financieel_risico,
@@ -1048,10 +1071,10 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           DBI::dbExecute(con, "
             INSERT INTO zaken (
               zaak_id, datum_aanmaak, omschrijving, aanvragende_directie,
-              type_dienst, rechtsgebied, status_zaak, advocaat,
+              type_dienst, rechtsgebied, status_zaak, advocaat, adv_kantoor,
               la_budget_wjz, budget_andere_directie, financieel_risico,
               opmerkingen, aangemaakt_door, laatst_gewijzigd
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ", list(
             form_data$zaak_id,
             form_data$datum_aanmaak,
@@ -1061,6 +1084,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             form_data$rechtsgebied,
             form_data$status_zaak,
             form_data$advocaat,
+            form_data$adv_kantoor,
             as.numeric(form_data$la_budget_wjz),        # Ensure numeric
             as.numeric(form_data$budget_andere_directie), # Ensure numeric
             as.numeric(form_data$financieel_risico),    # Ensure numeric
@@ -1092,6 +1116,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         show_notification("Fout bij opslaan zaak", type = "error")
       })
     })
+    
     
     # ========================================================================
     # RETURN VALUES

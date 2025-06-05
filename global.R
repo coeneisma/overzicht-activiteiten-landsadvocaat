@@ -200,6 +200,7 @@ app_theme <- bs_add_rules(app_theme,
   .modal-open .sidebar {
     filter: none !important;
   }
+  
   "
 )
 
@@ -362,5 +363,6 @@ tryCatch({
 # Export module
 # source("modules/export/export_ui.R")
 # source("modules/export/export_server.R")
+
 
 message("Dashboard Landsadvocaat - Global configuration loaded")
