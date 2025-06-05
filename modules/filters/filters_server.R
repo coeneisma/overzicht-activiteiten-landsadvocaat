@@ -8,8 +8,9 @@
 #' @param id Module namespace ID
 #' @param raw_data Reactive containing unfiltered data
 #' @param data_refresh_trigger Reactive value that triggers data refresh
+#' @param dropdown_refresh_trigger Reactive value that triggers dropdown refresh
 #' @return Reactive containing filtered data
-filters_server <- function(id, raw_data, data_refresh_trigger) {
+filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_trigger = reactiveVal(0)) {
   
   moduleServer(id, function(input, output, session) {
     
@@ -55,8 +56,9 @@ filters_server <- function(id, raw_data, data_refresh_trigger) {
     observe({
       req(nrow(raw_data()) > 0)  # Only run when we have data
       
-      # Trigger on data refresh
+      # Trigger on data refresh or dropdown refresh
       data_refresh_trigger()
+      dropdown_refresh_trigger()
       
       tryCatch({
         # Load dropdown options for each category

@@ -8,8 +8,9 @@
 #' @param id Module namespace ID
 #' @param current_user Reactive containing current username
 #' @param is_admin Reactive indicating if user is admin
+#' @param global_dropdown_refresh_trigger Reactive trigger for global dropdown refresh
 #' @return List with reactive values and functions
-instellingen_server <- function(id, current_user, is_admin) {
+instellingen_server <- function(id, current_user, is_admin, global_dropdown_refresh_trigger = NULL) {
   
   moduleServer(id, function(input, output, session) {
     
@@ -23,6 +24,10 @@ instellingen_server <- function(id, current_user, is_admin) {
     # Data refresh triggers
     users_refresh <- reactiveVal(0)
     dropdown_refresh <- reactiveVal(0)
+    
+    # Click tracking for duplicate prevention
+    last_clicked_dropdown_info <- reactiveVal(NULL)
+    last_clicked_user_info <- reactiveVal(NULL)
     
     # ========================================================================
     # USER MANAGEMENT
@@ -40,7 +45,7 @@ instellingen_server <- function(id, current_user, is_admin) {
         
         DBI::dbGetQuery(con, "
           SELECT gebruikersnaam, rol, actief, 
-                 aangemaakt_op, laatst_ingelogd
+                 aangemaakt_op, laatste_login as laatst_ingelogd
           FROM gebruikers 
           ORDER BY gebruikersnaam
         ")
@@ -70,11 +75,9 @@ instellingen_server <- function(id, current_user, is_admin) {
           `Aangemaakt` = format_date_nl(as.Date(aangemaakt_op)),
           `Laatst Ingelogd` = ifelse(is.na(laatst_ingelogd), "Nooit", 
                                    format_date_nl(as.Date(laatst_ingelogd))),
-          `Acties` = paste0(
-            '<button class="btn btn-sm btn-outline-primary" onclick="Shiny.setInputValue(\'', 
-            session$ns('edit_user'), '\', \'', gebruikersnaam, '\', {priority: \'event\'})">',
-            '<i class="fa fa-edit"></i> Bewerken</button>'
-          )
+          `Acties` = ifelse(gebruikersnaam == "admin", 
+                           "", # No delete button for admin
+                           '<button class="btn btn-sm btn-outline-danger"><i class="fa fa-trash"></i></button>')
         ) %>%
         select(
           "Gebruikersnaam" = gebruikersnaam,
@@ -87,6 +90,7 @@ instellingen_server <- function(id, current_user, is_admin) {
       
       DT::datatable(
         display_data,
+        selection = 'none',  # Disable row selection highlighting
         options = list(
           pageLength = 10,
           searching = TRUE,
@@ -98,16 +102,59 @@ instellingen_server <- function(id, current_user, is_admin) {
             infoEmpty = "Geen gebruikers beschikbaar",
             paginate = list(
               first = "Eerste", last = "Laatste",
-              next = "Volgende", previous = "Vorige"
+              "next" = "Volgende", previous = "Vorige"
             )
           )
         ),
         rownames = FALSE,
         class = "table table-striped table-hover compact",
-        escape = FALSE
+        escape = FALSE,
+        callback = DT::JS("
+          table.on('click', '.btn-outline-danger', function(e) {
+            e.stopPropagation(); // Prevent row click event
+            var username = $(this).closest('tr').find('td:first').text();
+            console.log('Delete button clicked for user:', username);
+            Shiny.setInputValue('instellingen-delete_user', username, {priority: 'event'});
+          });
+        ")
       )
       
     }, server = TRUE)
+    
+    # Handle users table row clicks for edit (but not on action buttons)
+    observeEvent(input$users_table_cell_clicked, {
+      
+      info <- input$users_table_cell_clicked
+      
+      if (!is.null(info$row) && info$row > 0) {
+        
+        # Don't open edit modal if clicked on Actions column (last column)
+        data <- users_data()
+        if (is.null(data) || nrow(data) == 0) return()
+        
+        # Actions column is the last column (index 5: Gebruikersnaam, Rol, Actief, Aangemaakt, Laatst Ingelogd, Acties)
+        if (!is.null(info$col) && info$col >= 5) {
+          return()  # Ignore clicks on Actions column
+        }
+        
+        # Simple duplicate prevention
+        current_info <- paste0(info$row, "_", info$col)
+        if (!is.null(last_clicked_user_info()) && current_info == last_clicked_user_info()) {
+          return()  # Ignore duplicate clicks
+        }
+        last_clicked_user_info(current_info)
+        
+        if (info$row <= nrow(data)) {
+          
+          # Get the clicked user
+          selected_user <- data[info$row, ]
+          username <- selected_user$gebruikersnaam
+          
+          cli_alert_info("Users table row clicked for: {username}")
+          show_edit_user_modal(selected_user)
+        }
+      }
+    })
     
     # ========================================================================
     # DROPDOWN MANAGEMENT
@@ -197,11 +244,11 @@ instellingen_server <- function(id, current_user, is_admin) {
         on.exit(close_db_connection(con))
         
         DBI::dbGetQuery(con, "
-          SELECT waarde, weergave_naam, volgorde, actief,
+          SELECT waarde, weergave_naam, actief,
                  aangemaakt_door, aangemaakt_op
           FROM dropdown_opties 
           WHERE categorie = ?
-          ORDER BY volgorde, waarde
+          ORDER BY weergave_naam
         ", list(category))
         
       }, error = function(e) {
@@ -229,25 +276,18 @@ instellingen_server <- function(id, current_user, is_admin) {
           `Weergave Naam` = ifelse(is.na(weergave_naam) | weergave_naam == "", 
                                  waarde, weergave_naam),
           `Actief` = ifelse(actief == 1, "Ja", "Nee"),
-          `Aangemaakt` = format_date_nl(as.Date(aangemaakt_op)),
-          `Acties` = paste0(
-            '<button class="btn btn-sm btn-outline-primary" onclick="Shiny.setInputValue(\'', 
-            session$ns('edit_dropdown_value'), '\', \'', waarde, '\', {priority: \'event\'})">',
-            '<i class="fa fa-edit"></i> Bewerken</button>'
-          )
+          `Aangemaakt` = format_date_nl(as.Date(aangemaakt_op))
         ) %>%
         select(
-          "Waarde" = waarde,
-          "Weergave Naam" = `Weergave Naam`,
-          "Volgorde" = volgorde,
+          "Waarde" = `Weergave Naam`,
           "Actief" = Actief,
           "Door" = aangemaakt_door,
-          "Aangemaakt" = Aangemaakt,
-          "Acties" = Acties
+          "Aangemaakt" = Aangemaakt
         )
       
       DT::datatable(
         display_data,
+        selection = 'none',  # Disable row selection highlighting
         options = list(
           pageLength = 15,
           searching = FALSE,
@@ -258,7 +298,7 @@ instellingen_server <- function(id, current_user, is_admin) {
             infoEmpty = "Geen waarden beschikbaar",
             paginate = list(
               first = "Eerste", last = "Laatste",
-              next = "Volgende", previous = "Vorige"
+              "next" = "Volgende", previous = "Vorige"
             )
           )
         ),
@@ -268,6 +308,34 @@ instellingen_server <- function(id, current_user, is_admin) {
       )
       
     }, server = TRUE)
+    
+    # Handle dropdown table row clicks for edit
+    observeEvent(input$dropdown_values_table_cell_clicked, {
+      
+      info <- input$dropdown_values_table_cell_clicked
+      
+      if (!is.null(info$row) && info$row > 0 && !is.null(selected_category())) {
+        
+        # Simple duplicate prevention
+        current_info <- paste0(info$row, "_", info$col)
+        if (!is.null(last_clicked_dropdown_info()) && current_info == last_clicked_dropdown_info()) {
+          return()  # Ignore duplicate clicks
+        }
+        last_clicked_dropdown_info(current_info)
+        
+        data <- dropdown_values_data()
+        if (nrow(data) > 0 && info$row <= nrow(data)) {
+          
+          # Get the clicked dropdown value
+          selected_value <- data[info$row, ]
+          waarde <- selected_value$waarde
+          category <- selected_category()
+          
+          cli_alert_info("Dropdown table row clicked for: {category}/{waarde}")
+          show_edit_dropdown_modal(selected_value, category)
+        }
+      }
+    })
     
     # ========================================================================
     # ADD USER MODAL
@@ -315,10 +383,10 @@ instellingen_server <- function(id, current_user, is_admin) {
                 session$ns("new_user_role"),
                 "Rol: *",
                 choices = list(
-                  "Gebruiker" = "user",
+                  "Gebruiker" = "gebruiker",
                   "Administrator" = "admin"
                 ),
-                selected = "user"
+                selected = "gebruiker"
               ),
               
               checkboxInput(
@@ -410,14 +478,13 @@ instellingen_server <- function(id, current_user, is_admin) {
         DBI::dbExecute(con, "
           INSERT INTO gebruikers (
             gebruikersnaam, wachtwoord_hash, rol, actief,
-            aangemaakt_door, aangemaakt_op
-          ) VALUES (?, ?, ?, ?, ?, ?)
+            aangemaakt_op
+          ) VALUES (?, ?, ?, ?, ?)
         ", list(
           input$new_user_username,
           password_hash,
           input$new_user_role,
           if (input$new_user_active) 1 else 0,
-          current_user(),
           as.character(Sys.time())
         ))
         
@@ -466,23 +533,9 @@ instellingen_server <- function(id, current_user, is_admin) {
           # Dropdown form
           div(
             textInput(
-              session$ns("new_dropdown_waarde"),
-              "Waarde (database): *",
-              placeholder = "bijv. nieuwe_waarde_zonder_spaties"
-            ),
-            
-            textInput(
               session$ns("new_dropdown_weergave"),
-              "Weergave Naam: *",
+              "Waarde Naam: *",
               placeholder = "bijv. Nieuwe Waarde Met Spaties"
-            ),
-            
-            numericInput(
-              session$ns("new_dropdown_volgorde"),
-              "Volgorde:",
-              value = 0,
-              min = 0,
-              step = 1
             ),
             
             checkboxInput(
@@ -495,7 +548,7 @@ instellingen_server <- function(id, current_user, is_admin) {
             div(
               class = "text-muted small mt-2",
               icon("info-circle"), " ",
-              "De waarde wordt gebruikt in de database, de weergave naam wordt getoond aan gebruikers."
+              "De waarde wordt automatisch opgeslagen met underscores voor spaties."
             )
           )
         ),
@@ -531,15 +584,25 @@ instellingen_server <- function(id, current_user, is_admin) {
       
       category <- selected_category()
       
+      # Generate waarde from weergave naam
+      if (is.null(input$new_dropdown_weergave) || input$new_dropdown_weergave == "") {
+        output$dropdown_form_messages <- renderUI({
+          div(class = "alert alert-warning", "Waarde naam is verplicht")
+        })
+        return()
+      }
+      
+      # Generate database value by replacing spaces with underscores and converting to lowercase
+      generated_waarde <- tolower(gsub("[^a-zA-Z0-9\\s]", "", input$new_dropdown_weergave))  # Remove special chars
+      generated_waarde <- gsub("\\s+", "_", generated_waarde)  # Replace spaces with underscores
+      generated_waarde <- gsub("_+", "_", generated_waarde)    # Replace multiple underscores with single
+      generated_waarde <- gsub("^_|_$", "", generated_waarde)  # Remove leading/trailing underscores
+      
       # Validation
       errors <- c()
       
-      if (is.null(input$new_dropdown_waarde) || input$new_dropdown_waarde == "") {
-        errors <- c(errors, "Waarde is verplicht")
-      }
-      
-      if (is.null(input$new_dropdown_weergave) || input$new_dropdown_weergave == "") {
-        errors <- c(errors, "Weergave naam is verplicht")
+      if (generated_waarde == "") {
+        errors <- c(errors, "Geen geldige waarde kon worden gegenereerd uit de naam")
       }
       
       if (length(errors) > 0) {
@@ -562,7 +625,7 @@ instellingen_server <- function(id, current_user, is_admin) {
         existing <- DBI::dbGetQuery(con, "
           SELECT COUNT(*) as count FROM dropdown_opties 
           WHERE categorie = ? AND waarde = ?
-        ", list(category, input$new_dropdown_waarde))
+        ", list(category, generated_waarde))
         
         if (existing$count > 0) {
           output$dropdown_form_messages <- renderUI({
@@ -574,24 +637,26 @@ instellingen_server <- function(id, current_user, is_admin) {
         # Insert dropdown value
         DBI::dbExecute(con, "
           INSERT INTO dropdown_opties (
-            categorie, waarde, weergave_naam, volgorde, actief,
+            categorie, waarde, weergave_naam, actief,
             aangemaakt_door, aangemaakt_op
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?)
         ", list(
           category,
-          input$new_dropdown_waarde,
+          generated_waarde,
           input$new_dropdown_weergave,
-          input$new_dropdown_volgorde,
           if (input$new_dropdown_active) 1 else 0,
           current_user(),
           as.character(Sys.time())
         ))
         
-        cli_alert_success("Dropdown value created: {category}/{input$new_dropdown_waarde}")
+        cli_alert_success("Dropdown value created: {category}/{generated_waarde}")
         show_notification(paste("Waarde toegevoegd:", input$new_dropdown_weergave), type = "message")
         
-        # Refresh dropdowns
+        # Refresh dropdowns locally and globally
         dropdown_refresh(dropdown_refresh() + 1)
+        if (!is.null(global_dropdown_refresh_trigger)) {
+          global_dropdown_refresh_trigger(global_dropdown_refresh_trigger() + 1)
+        }
         
         # Close modal
         removeModal()
@@ -603,41 +668,100 @@ instellingen_server <- function(id, current_user, is_admin) {
     })
     
     # ========================================================================
+    # DELETE HANDLERS
+    # ========================================================================
+    
+    # Delete user handler (soft delete via actief = 0)
+    observeEvent(input$delete_user, {
+      cli_alert_info("Delete user event triggered: {input$delete_user}")
+      req(is_admin(), input$delete_user)
+      
+      username <- input$delete_user
+      cli_alert_info("Delete user processing: {username}")
+      
+      # Prevent deleting admin user
+      if (username == "admin") {
+        show_notification("Admin gebruiker kan niet worden verwijderd", type = "error")
+        return()
+      }
+      
+      showModal(modalDialog(
+        title = "Gebruiker Verwijderen",
+        size = "m",
+        easyClose = TRUE,
+        
+        div(
+          div(
+            class = "alert alert-warning",
+            icon("exclamation-triangle"), " ",
+            paste("Weet je zeker dat je gebruiker", strong(username), "wilt verwijderen?")
+          ),
+          p("De gebruiker wordt gedeactiveerd en kan niet meer inloggen.")
+        ),
+        
+        footer = div(
+          actionButton(
+            session$ns("btn_delete_user_cancel"),
+            "Annuleren",
+            class = "btn-outline-secondary"
+          ),
+          actionButton(
+            session$ns("btn_delete_user_confirm"),
+            "Verwijderen",
+            class = "btn-danger ms-2",
+            icon = icon("trash")
+          )
+        )
+      ))
+    })
+    
+    # Cancel delete user
+    observeEvent(input$btn_delete_user_cancel, {
+      removeModal()
+    })
+    
+    # Force modal close on escape key or outside click
+    observeEvent(input$shiny_modal, {
+      if (is.null(input$shiny_modal)) {
+        removeModal()
+      }
+    })
+    
+    # Confirm delete user
+    observeEvent(input$btn_delete_user_confirm, {
+      username <- input$delete_user
+      req(is_admin(), username, username != "admin")
+      
+      tryCatch({
+        con <- get_db_connection()
+        on.exit(close_db_connection(con))
+        
+        # Soft delete: set actief = 0
+        DBI::dbExecute(con, "
+          UPDATE gebruikers SET actief = 0
+          WHERE gebruikersnaam = ?
+        ", list(username))
+        
+        cli_alert_success("User deactivated: {username}")
+        show_notification(paste("Gebruiker verwijderd:", username), type = "message")
+        
+        # Refresh users
+        users_refresh(users_refresh() + 1)
+        
+        # Close modal
+        removeModal()
+        
+      }, error = function(e) {
+        cli_alert_danger("Error deleting user: {e$message}")
+        show_notification("Fout bij verwijderen gebruiker", type = "error")
+      })
+    })
+    
+    # ========================================================================
     # EDIT HANDLERS
     # ========================================================================
     
-    # Edit user handler
-    observeEvent(input$edit_user, {
-      req(is_admin(), input$edit_user)
-      
-      username <- input$edit_user
-      cli_alert_info("Edit user requested: {username}")
-      
-      # Get user data
-      all_users <- users_data()
-      user_data <- all_users[all_users$gebruikersnaam == username, ]
-      
-      if (nrow(user_data) > 0) {
-        show_edit_user_modal(user_data[1, ])
-      }
-    })
     
-    # Edit dropdown value handler
-    observeEvent(input$edit_dropdown_value, {
-      req(is_admin(), selected_category(), input$edit_dropdown_value)
-      
-      category <- selected_category()
-      waarde <- input$edit_dropdown_value
-      cli_alert_info("Edit dropdown value requested: {category}/{waarde}")
-      
-      # Get dropdown value data
-      all_values <- dropdown_values_data()
-      value_data <- all_values[all_values$waarde == waarde, ]
-      
-      if (nrow(value_data) > 0) {
-        show_edit_dropdown_modal(value_data[1, ], category)
-      }
-    })
     
     # ========================================================================
     # EDIT MODAL FUNCTIONS
@@ -656,11 +780,16 @@ instellingen_server <- function(id, current_user, is_admin) {
           
           # User form (read-only username)
           div(
-            textInput(
-              session$ns("edit_user_username"),
-              "Gebruikersnaam:",
-              value = user_data$gebruikersnaam,
-              readonly = TRUE
+            div(
+              class = "form-group",
+              tags$label(class = "control-label", "Gebruikersnaam:"),
+              tags$input(
+                type = "text",
+                class = "form-control",
+                value = user_data$gebruikersnaam,
+                readonly = "readonly",
+                style = "background-color: #f8f9fa;"
+              )
             ),
             
             passwordInput(
@@ -679,7 +808,7 @@ instellingen_server <- function(id, current_user, is_admin) {
               session$ns("edit_user_role"),
               "Rol: *",
               choices = list(
-                "Gebruiker" = "user",
+                "Gebruiker" = "gebruiker",
                 "Administrator" = "admin"
               ),
               selected = user_data$rol
@@ -738,29 +867,22 @@ instellingen_server <- function(id, current_user, is_admin) {
           # Dropdown form
           div(
             textInput(
-              session$ns("edit_dropdown_waarde"),
-              "Waarde (database): *",
-              value = value_data$waarde
-            ),
-            
-            textInput(
               session$ns("edit_dropdown_weergave"),
-              "Weergave Naam: *",
+              "Waarde Naam: *",
               value = ifelse(is.na(value_data$weergave_naam), "", value_data$weergave_naam)
-            ),
-            
-            numericInput(
-              session$ns("edit_dropdown_volgorde"),
-              "Volgorde:",
-              value = value_data$volgorde,
-              min = 0,
-              step = 1
             ),
             
             checkboxInput(
               session$ns("edit_dropdown_active"),
               "Actief",
               value = (value_data$actief == 1)
+            ),
+            
+            # Help text
+            div(
+              class = "text-muted small mt-2",
+              icon("info-circle"), " ",
+              "Huidige database waarde: ", tags$code(value_data$waarde)
             )
           )
         ),
@@ -830,16 +952,23 @@ instellingen_server <- function(id, current_user, is_admin) {
             UPDATE gebruikers SET 
               wachtwoord_hash = ?, rol = ?, actief = ?
             WHERE gebruikersnaam = ?
-          ", list(password_hash, input$edit_user_role, 
-                  if (input$edit_user_active) 1 else 0, username))
+          ", list(
+            password_hash, 
+            input$edit_user_role, 
+            if (input$edit_user_active) 1 else 0, 
+            username
+          ))
         } else {
           # Update without password
           DBI::dbExecute(con, "
             UPDATE gebruikers SET 
               rol = ?, actief = ?
             WHERE gebruikersnaam = ?
-          ", list(input$edit_user_role, 
-                  if (input$edit_user_active) 1 else 0, username))
+          ", list(
+            input$edit_user_role, 
+            if (input$edit_user_active) 1 else 0, 
+            username
+          ))
         }
         
         cli_alert_success("User updated: {username}")
@@ -869,26 +998,38 @@ instellingen_server <- function(id, current_user, is_admin) {
       category <- selected_category()
       original_waarde <- input$edit_original_waarde
       
+      # Generate new waarde from weergave naam
+      if (is.null(input$edit_dropdown_weergave) || input$edit_dropdown_weergave == "") {
+        output$edit_dropdown_form_messages <- renderUI({
+          div(class = "alert alert-warning", "Waarde naam is verplicht")
+        })
+        return()
+      }
+      
+      # Generate database value by replacing spaces with underscores and converting to lowercase
+      generated_waarde <- tolower(gsub("[^a-zA-Z0-9\\s]", "", input$edit_dropdown_weergave))  # Remove special chars
+      generated_waarde <- gsub("\\s+", "_", generated_waarde)  # Replace spaces with underscores
+      generated_waarde <- gsub("_+", "_", generated_waarde)    # Replace multiple underscores with single
+      generated_waarde <- gsub("^_|_$", "", generated_waarde)  # Remove leading/trailing underscores
+      
       # Validation
       errors <- c()
       
-      if (is.null(input$edit_dropdown_waarde) || input$edit_dropdown_waarde == "") {
-        errors <- c(errors, "Waarde is verplicht")
-      }
-      
-      if (is.null(input$edit_dropdown_weergave) || input$edit_dropdown_weergave == "") {
-        errors <- c(errors, "Weergave naam is verplicht")
+      if (generated_waarde == "") {
+        errors <- c(errors, "Geen geldige waarde kon worden gegenereerd uit de naam")
       }
       
       # Check if new value already exists (only if changed)
-      if (input$edit_dropdown_waarde != original_waarde) {
+      if (!is.null(generated_waarde) && !is.null(original_waarde) && 
+          length(generated_waarde) > 0 && length(original_waarde) > 0 &&
+          generated_waarde != original_waarde) {
         con <- get_db_connection()
         on.exit(close_db_connection(con))
         
         existing <- DBI::dbGetQuery(con, "
           SELECT COUNT(*) as count FROM dropdown_opties 
           WHERE categorie = ? AND waarde = ?
-        ", list(category, input$edit_dropdown_waarde))
+        ", list(category, generated_waarde))
         
         if (existing$count > 0) {
           errors <- c(errors, "Deze waarde bestaat al voor deze categorie")
@@ -913,22 +1054,24 @@ instellingen_server <- function(id, current_user, is_admin) {
         
         DBI::dbExecute(con, "
           UPDATE dropdown_opties SET 
-            waarde = ?, weergave_naam = ?, volgorde = ?, actief = ?
+            waarde = ?, weergave_naam = ?, actief = ?
           WHERE categorie = ? AND waarde = ?
         ", list(
-          input$edit_dropdown_waarde,
+          generated_waarde,
           input$edit_dropdown_weergave,
-          input$edit_dropdown_volgorde,
           if (input$edit_dropdown_active) 1 else 0,
           category,
           original_waarde
         ))
         
-        cli_alert_success("Dropdown value updated: {category}/{original_waarde} -> {input$edit_dropdown_waarde}")
+        cli_alert_success("Dropdown value updated: {category}/{original_waarde} -> {generated_waarde}")
         show_notification(paste("Waarde bijgewerkt:", input$edit_dropdown_weergave), type = "message")
         
-        # Refresh dropdowns
+        # Refresh dropdowns locally and globally
         dropdown_refresh(dropdown_refresh() + 1)
+        if (!is.null(global_dropdown_refresh_trigger)) {
+          global_dropdown_refresh_trigger(global_dropdown_refresh_trigger() + 1)
+        }
         
         # Close modal
         removeModal()

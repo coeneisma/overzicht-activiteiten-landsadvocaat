@@ -21,6 +21,9 @@ server <- function(input, output, session) {
   # Data refresh trigger (incremented when data changes)
   data_refresh_trigger <- reactiveVal(0)
   
+  # Dropdown refresh trigger (for filter dropdown updates)
+  dropdown_refresh_trigger <- reactiveVal(0)
+  
   # =========================================================================
   # LOGIN MODULE
   # =========================================================================
@@ -112,7 +115,7 @@ server <- function(input, output, session) {
   # =========================================================================
   
   # Initialize filter module (always, but data only loads after login)
-  filter_result <- filters_server("filters", raw_data, data_refresh_trigger)
+  filter_result <- filters_server("filters", raw_data, data_refresh_trigger, dropdown_refresh_trigger)
   
   # Get filtered data from filter module
   filtered_data <- filter_result$filtered_data
@@ -129,7 +132,8 @@ server <- function(input, output, session) {
       filtered_data, 
       raw_data, 
       data_refresh_trigger, 
-      login_result$user
+      login_result$user,
+      dropdown_refresh_trigger
     )
     cli_alert_success("Minimal data management module initialized successfully")
     result
@@ -150,7 +154,8 @@ server <- function(input, output, session) {
     result <- instellingen_server(
       "instellingen",
       login_result$user,
-      login_result$is_admin
+      login_result$is_admin,
+      dropdown_refresh_trigger
     )
     cli_alert_success("Instellingen module initialized successfully")
     result
@@ -252,6 +257,12 @@ server <- function(input, output, session) {
   refresh_data <- function() {
     cli_alert_info("Data refresh triggered")
     data_refresh_trigger(data_refresh_trigger() + 1)
+  }
+  
+  # Dropdown refresh function (for dropdown updates)
+  refresh_dropdowns <- function() {
+    cli_alert_info("Dropdown refresh triggered")
+    dropdown_refresh_trigger(dropdown_refresh_trigger() + 1)
   }
   
   # =========================================================================

@@ -11,8 +11,9 @@
 #' @param raw_data Reactive containing all case data
 #' @param data_refresh_trigger Reactive value to trigger data refresh
 #' @param current_user Reactive containing current username
+#' @param global_dropdown_refresh_trigger Reactive trigger for dropdown refresh
 #' @return List with reactive values and functions
-data_management_server <- function(id, filtered_data, raw_data, data_refresh_trigger, current_user) {
+data_management_server <- function(id, filtered_data, raw_data, data_refresh_trigger, current_user, global_dropdown_refresh_trigger = NULL) {
   
   moduleServer(id, function(input, output, session) {
     
@@ -201,13 +202,18 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
     dropdown_choices <- reactiveValues()
     
     observe({
+      # React to global dropdown refresh trigger
+      if (!is.null(global_dropdown_refresh_trigger)) {
+        global_dropdown_refresh_trigger()
+      }
+      
       tryCatch({
         dropdown_choices$type_dienst <- get_dropdown_opties("type_dienst")
         dropdown_choices$rechtsgebied <- get_dropdown_opties("rechtsgebied")
         dropdown_choices$status_zaak <- get_dropdown_opties("status_zaak")
         dropdown_choices$aanvragende_directie <- get_dropdown_opties("aanvragende_directie")
         
-        cli_alert_success("Dropdown choices loaded for form")
+        cli_alert_success("Dropdown choices refreshed for form")
         
       }, error = function(e) {
         cli_alert_danger("Error loading dropdown choices: {e$message}")
@@ -283,6 +289,13 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             class = "btn-primary",
             icon = icon("edit"),
             onclick = paste0("Shiny.setInputValue('", session$ns("edit_zaak_id"), "', '", zaak_data$zaak_id, "', {priority: 'event'})")
+          ),
+          actionButton(
+            session$ns("btn_details_delete"),
+            "Verwijderen",
+            class = "btn-danger ms-2",
+            icon = icon("trash"),
+            onclick = paste0("Shiny.setInputValue('", session$ns("delete_zaak_id"), "', '", zaak_data$zaak_id, "', {priority: 'event'})")
           ),
           actionButton(
             session$ns("btn_details_close"),
@@ -636,6 +649,87 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
     observeEvent(input$btn_nieuwe_zaak, {
       cli_alert_info("New case button clicked by user: {current_user()}")
       show_nieuwe_zaak_modal()
+    })
+    
+    # ========================================================================
+    # DELETE EVENT HANDLERS
+    # ========================================================================
+    
+    # Handle delete button click from details modal
+    observeEvent(input$delete_zaak_id, {
+      
+      zaak_id <- input$delete_zaak_id
+      cli_alert_info("Delete requested for zaak: {zaak_id}")
+      
+      # Get case data for confirmation
+      all_data <- raw_data()
+      zaak_data <- all_data[all_data$zaak_id == zaak_id, ]
+      
+      if (nrow(zaak_data) > 0) {
+        showModal(modalDialog(
+          title = "Zaak Verwijderen",
+          size = "m",
+          easyClose = FALSE,
+          
+          div(
+            div(
+              class = "alert alert-warning",
+              icon("exclamation-triangle"), " ",
+              paste("Weet je zeker dat je zaak", strong(zaak_id), "wilt verwijderen?")
+            ),
+            p(strong("Omschrijving: "), zaak_data$omschrijving[1]),
+            p("De zaak wordt verplaatst naar status 'Verwijderd' en niet meer getoond in het overzicht.")
+          ),
+          
+          footer = div(
+            actionButton(
+              session$ns("btn_delete_zaak_cancel"),
+              "Annuleren",
+              class = "btn-outline-secondary"
+            ),
+            actionButton(
+              session$ns("btn_delete_zaak_confirm"),
+              "Verwijderen",
+              class = "btn-danger ms-2",
+              icon = icon("trash")
+            )
+          )
+        ))
+      }
+    })
+    
+    # Cancel delete zaak
+    observeEvent(input$btn_delete_zaak_cancel, {
+      removeModal()
+    })
+    
+    # Confirm delete zaak
+    observeEvent(input$btn_delete_zaak_confirm, {
+      zaak_id <- input$delete_zaak_id
+      req(zaak_id)
+      
+      tryCatch({
+        # Use existing delete function - soft delete by setting status to "Verwijderd"
+        success <- verwijder_zaak(zaak_id, hard_delete = FALSE)
+        
+        if (success) {
+          cli_alert_success("Case soft deleted: {zaak_id}")
+          show_notification(paste("Zaak verwijderd:", zaak_id), type = "message")
+          
+          # Trigger data refresh
+          data_refresh_trigger(data_refresh_trigger() + 1)
+          
+          # Close both modals (confirmation and details)
+          removeModal()
+          
+        } else {
+          show_notification("Fout bij verwijderen zaak", type = "error")
+        }
+        
+      }, error = function(e) {
+        cli_alert_danger("Error deleting case: {e$message}")
+        show_notification("Fout bij verwijderen zaak", type = "error")
+      })
     })
     
     # ========================================================================
