@@ -99,19 +99,6 @@ ui <- div(
         )
       ),
       
-      # Export tab
-      nav_panel(
-        title = "Export", 
-        icon = icon("file-export"),
-        value = "tab_export",
-        
-        div(
-          class = "container-fluid",
-          h1("Export & Rapporten"),
-          p("Export module wordt binnenkort geladen...", class = "text-muted")
-        )
-      ),
-      
       # Instellingen tab (admin only)
       nav_panel(
         title = "Instellingen",
