@@ -221,7 +221,6 @@ get_dropdown_opties <- function(categorie, actief_alleen = TRUE) {
   }
   
   result <- query %>%
-    arrange(volgorde, waarde) %>%
     select(waarde, weergave_naam) %>%
     collect()
   
@@ -230,6 +229,9 @@ get_dropdown_opties <- function(categorie, actief_alleen = TRUE) {
                    result$waarde, result$weergave_naam)
   opties <- result$waarde
   names(opties) <- labels
+  
+  # Sorteer alfabetisch op labels (weergave namen)
+  opties <- opties[order(names(opties))]
   
   return(opties)
 }
@@ -303,7 +305,33 @@ lees_zaken <- function(filters = list(), con = NULL) {
   # Converteer datum kolommen
   if (nrow(result) > 0) {
     result$datum_aanmaak <- as.Date(result$datum_aanmaak)
-    result$laatst_gewijzigd <- as.POSIXct(result$laatst_gewijzigd)
+    
+    # Robuuste conversie van laatst_gewijzigd met verschillende formaten
+    result$laatst_gewijzigd <- tryCatch({
+      # Probeer eerst standaard POSIXct conversie
+      as.POSIXct(result$laatst_gewijzigd)
+    }, error = function(e) {
+      # Als dat faalt, probeer verschillende formaten
+      sapply(result$laatst_gewijzigd, function(x) {
+        if (is.na(x) || x == "") return(as.POSIXct(NA))
+        
+        # Probeer verschillende datetime formaten
+        formats <- c(
+          "%Y-%m-%d %H:%M:%S",
+          "%Y-%m-%d %H:%M:%S.%f",
+          "%Y-%m-%d %H:%M",
+          "%Y-%m-%d"
+        )
+        
+        for (fmt in formats) {
+          result <- tryCatch(as.POSIXct(x, format = fmt), error = function(e) NULL)
+          if (!is.null(result) && !is.na(result)) return(result)
+        }
+        
+        # Als alles faalt, return huidige tijd
+        return(Sys.time())
+      })
+    })
   }
   
   return(result)
@@ -351,14 +379,20 @@ verwijder_zaak <- function(zaak_id, hard_delete = FALSE) {
   con <- get_db_connection()
   on.exit(close_db_connection(con))
   
-  if (hard_delete) {
-    DBI::dbExecute(con, "DELETE FROM zaken WHERE zaak_id = ?", params = list(zaak_id))
-  } else {
-    # Soft delete - verander status naar 'Verwijderd'
-    DBI::dbExecute(con, 
-                   "UPDATE zaken SET status_zaak = 'Verwijderd', laatst_gewijzigd = ? WHERE zaak_id = ?",
-                   params = list(Sys.time(), zaak_id))
-  }
+  tryCatch({
+    if (hard_delete) {
+      result <- DBI::dbExecute(con, "DELETE FROM zaken WHERE zaak_id = ?", params = list(zaak_id))
+    } else {
+      # Soft delete - verander status naar 'Verwijderd'
+      result <- DBI::dbExecute(con, 
+                     "UPDATE zaken SET status_zaak = 'Verwijderd', laatst_gewijzigd = ? WHERE zaak_id = ?",
+                     params = list(Sys.time(), zaak_id))
+    }
+    return(result > 0)  # Return TRUE if rows were affected
+  }, error = function(e) {
+    warning("Error deleting zaak ", zaak_id, ": ", e$message)
+    return(FALSE)
+  })
 }
 
 # =============================================================================

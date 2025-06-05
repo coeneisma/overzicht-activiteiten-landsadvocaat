@@ -675,10 +675,10 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             div(
               class = "alert alert-warning",
               icon("exclamation-triangle"), " ",
-              paste("Weet je zeker dat je zaak", strong(zaak_id), "wilt verwijderen?")
+              paste("Weet je zeker dat je zaak", strong(zaak_id), "permanent wilt verwijderen?")
             ),
             p(strong("Omschrijving: "), zaak_data$omschrijving[1]),
-            p("De zaak wordt verplaatst naar status 'Verwijderd' en niet meer getoond in het overzicht.")
+            p(class = "text-danger", strong("LET OP: "), "De zaak wordt permanent verwijderd uit de database en kan niet worden hersteld!")
           ),
           
           footer = div(
@@ -689,7 +689,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             ),
             actionButton(
               session$ns("btn_delete_zaak_confirm"),
-              "Verwijderen",
+              "Permanent Verwijderen",
               class = "btn-danger ms-2",
               icon = icon("trash")
             )
@@ -709,12 +709,12 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       req(zaak_id)
       
       tryCatch({
-        # Use existing delete function - soft delete by setting status to "Verwijderd"
-        success <- verwijder_zaak(zaak_id, hard_delete = FALSE)
+        # Use existing delete function - hard delete to permanently remove
+        success <- verwijder_zaak(zaak_id, hard_delete = TRUE)
         
         if (success) {
-          cli_alert_success("Case soft deleted: {zaak_id}")
-          show_notification(paste("Zaak verwijderd:", zaak_id), type = "message")
+          cli_alert_success("Case permanently deleted: {zaak_id}")
+          show_notification(paste("Zaak permanent verwijderd:", zaak_id), type = "message")
           
           # Trigger data refresh
           data_refresh_trigger(data_refresh_trigger() + 1)

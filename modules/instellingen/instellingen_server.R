@@ -736,14 +736,14 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         con <- get_db_connection()
         on.exit(close_db_connection(con))
         
-        # Soft delete: set actief = 0
+        # Hard delete: permanently remove user from database
         DBI::dbExecute(con, "
-          UPDATE gebruikers SET actief = 0
+          DELETE FROM gebruikers 
           WHERE gebruikersnaam = ?
         ", list(username))
         
-        cli_alert_success("User deactivated: {username}")
-        show_notification(paste("Gebruiker verwijderd:", username), type = "message")
+        cli_alert_success("User permanently deleted: {username}")
+        show_notification(paste("Gebruiker permanent verwijderd:", username), type = "message")
         
         # Refresh users
         users_refresh(users_refresh() + 1)

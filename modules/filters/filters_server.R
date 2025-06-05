@@ -239,8 +239,10 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
         filtered <- filtered %>% filter(financieel_risico <= input$risico_max)
       }
       
-      # Remove deleted cases by default
-      filtered <- filtered %>% filter(status_zaak != "Verwijderd")
+      # Remove deleted cases by default (unless user wants to see them)
+      if (!isTRUE(input$show_deleted)) {
+        filtered <- filtered %>% filter(status_zaak != "Verwijderd")
+      }
       
       return(filtered)
     }) %>% 
@@ -312,6 +314,9 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
       updateNumericInput(session, "budget_max", value = NA)
       updateNumericInput(session, "risico_min", value = NA)
       updateNumericInput(session, "risico_max", value = NA)
+      
+      # Reset show deleted checkbox
+      updateCheckboxInput(session, "show_deleted", value = FALSE)
       
       cli_alert_info("Filters reset")
       show_notification("Alle filters zijn gereset", type = "message")
