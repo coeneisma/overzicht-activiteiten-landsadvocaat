@@ -246,12 +246,14 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             div(class = "col-md-6",
                 strong("Zaak ID: "), zaak_data$zaak_id, br(),
                 strong("Datum: "), format_date_nl(zaak_data$datum_aanmaak), br(),
+                strong("WJZ MT-lid: "), ifelse(is.na(zaak_data$wjz_mt_lid), "-", zaak_data$wjz_mt_lid), br(),
                 strong("Status: "), ifelse(is.na(zaak_data$status_zaak), "-", get_weergave_naam("status_zaak", zaak_data$status_zaak)), br(),
-                strong("Type Dienst: "), ifelse(is.na(zaak_data$type_dienst), "-", get_weergave_naam("type_dienst", zaak_data$type_dienst))
+                strong("Type Dienst: "), ifelse(is.na(zaak_data$type_dienst), "-", get_weergave_naam("type_dienst", zaak_data$type_dienst)), br(),
+                strong("Aanvragende Directie: "), ifelse(is.na(zaak_data$aanvragende_directie), "-", get_weergave_naam("aanvragende_directie", zaak_data$aanvragende_directie)), br(),
+                strong("Contactpersoon: "), ifelse(is.na(zaak_data$contactpersoon), "-", zaak_data$contactpersoon)
             ),
             div(class = "col-md-6",
                 strong("Rechtsgebied: "), ifelse(is.na(zaak_data$rechtsgebied), "-", get_weergave_naam("rechtsgebied", zaak_data$rechtsgebied)), br(),
-                strong("Aanvragende Directie: "), ifelse(is.na(zaak_data$aanvragende_directie), "-", get_weergave_naam("aanvragende_directie", zaak_data$aanvragende_directie)), br(),
                 strong("Advocaat: "), ifelse(is.na(zaak_data$advocaat), "-", zaak_data$advocaat), br(),
                 strong("Kantoor: "), ifelse(is.na(zaak_data$adv_kantoor), "-", zaak_data$adv_kantoor)
             )
@@ -348,18 +350,23 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 language = "nl"
               ),
               
-              textAreaInput(
-                session$ns("edit_form_omschrijving"),
-                "Omschrijving: *",
-                value = ifelse(is.na(zaak_data$omschrijving), "", zaak_data$omschrijving),
-                rows = 3
+              textInput(
+                session$ns("edit_form_wjz_mt_lid"),
+                "WJZ MT-lid:",
+                value = ifelse(is.na(zaak_data$wjz_mt_lid), "", zaak_data$wjz_mt_lid)
               ),
               
-              selectInput(
+              textInput(
                 session$ns("edit_form_aanvragende_directie"),
                 "Aanvragende Directie: *",
-                choices = c("Selecteer..." = "", dropdown_choices$aanvragende_directie),
-                selected = ifelse(is.na(zaak_data$aanvragende_directie), "", zaak_data$aanvragende_directie)
+                value = ifelse(is.na(zaak_data$aanvragende_directie), "", zaak_data$aanvragende_directie),
+                placeholder = "bijv. PO, VO, of meerdere gescheiden door komma"
+              ),
+              
+              textInput(
+                session$ns("edit_form_contactpersoon"),
+                "Contactpersoon:",
+                value = ifelse(is.na(zaak_data$contactpersoon), "", zaak_data$contactpersoon)
               )
             ),
             
@@ -401,6 +408,21 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 "Advocatenkantoor:",
                 value = ifelse(is.na(zaak_data$adv_kantoor), "", zaak_data$adv_kantoor),
                 placeholder = "Naam van het kantoor"
+              )
+            )
+          ),
+          
+          # Omschrijving - formulier-breed
+          div(
+            class = "row mt-3",
+            
+            div(
+              class = "col-12",
+              textAreaInput(
+                session$ns("edit_form_omschrijving"),
+                "Omschrijving: *",
+                value = ifelse(is.na(zaak_data$omschrijving), "", zaak_data$omschrijving),
+                rows = 3
               )
             )
           ),
@@ -525,17 +547,22 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 language = "nl"
               ),
               
-              textAreaInput(
-                session$ns("form_omschrijving"),
-                "Omschrijving: *",
-                rows = 3,
-                placeholder = "Korte beschrijving van de zaak..."
+              textInput(
+                session$ns("form_wjz_mt_lid"),
+                "WJZ MT-lid:",
+                placeholder = "Naam van het WJZ MT-lid"
               ),
               
-              selectInput(
+              textInput(
                 session$ns("form_aanvragende_directie"),
                 "Aanvragende Directie: *",
-                choices = c("Selecteer..." = "", dropdown_choices$aanvragende_directie)
+                placeholder = "bijv. PO, VO, of meerdere gescheiden door komma"
+              ),
+              
+              textInput(
+                session$ns("form_contactpersoon"),
+                "Contactpersoon:",
+                placeholder = "Naam van de contactpersoon"
               )
             ),
             
@@ -572,6 +599,21 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 session$ns("form_adv_kantoor"),
                 "Advocatenkantoor:",
                 placeholder = "Naam van het kantoor"
+              )
+            )
+          ),
+          
+          # Omschrijving - formulier-breed
+          div(
+            class = "row mt-3",
+            
+            div(
+              class = "col-12",
+              textAreaInput(
+                session$ns("form_omschrijving"),
+                "Omschrijving: *",
+                rows = 3,
+                placeholder = "Korte beschrijving van de zaak..."
               )
             )
           ),
@@ -963,6 +1005,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           datum_aanmaak = as.character(input$edit_form_datum_aanmaak),
           omschrijving = input$edit_form_omschrijving,
           aanvragende_directie = input$edit_form_aanvragende_directie,
+          wjz_mt_lid = input$edit_form_wjz_mt_lid,
+          contactpersoon = input$edit_form_contactpersoon,
           type_dienst = input$edit_form_type_dienst,
           rechtsgebied = input$edit_form_rechtsgebied,
           status_zaak = input$edit_form_status_zaak,
@@ -1138,6 +1182,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           datum_aanmaak = as.character(input$form_datum_aanmaak),
           omschrijving = input$form_omschrijving,
           aanvragende_directie = input$form_aanvragende_directie,
+          wjz_mt_lid = input$form_wjz_mt_lid,
+          contactpersoon = input$form_contactpersoon,
           type_dienst = input$form_type_dienst,
           rechtsgebied = input$form_rechtsgebied,
           status_zaak = input$form_status_zaak,
