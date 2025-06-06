@@ -49,7 +49,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
           type_dienst_display = sapply(type_dienst, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_dienst", x)),
           rechtsgebied_display = sapply(rechtsgebied, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("rechtsgebied", x)),
           status_zaak_display = sapply(status_zaak, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("status_zaak", x)),
-          aanvragende_directie_display = sapply(aanvragende_directie, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("aanvragende_directie", x)),
+          aanvragende_directie_display = ifelse(is.na(directies) | directies == "" | directies == "Niet ingesteld", "Onbekend", directies),
           adv_kantoor_display = ifelse(is.na(adv_kantoor) | adv_kantoor == "", "Onbekend", adv_kantoor)
         ) %>%
         filter(!is.na(looptijd_dagen) & looptijd_dagen >= 0)
@@ -84,12 +84,12 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
       format(avg_duration, big.mark = " ")
     })
     
-    # Open cases KPI
+    # Lopende cases KPI
     output$kpi_open_cases <- renderText({
       data <- analysis_data()
       if (is.null(data)) return("0")
       
-      open_count <- sum(data$status_zaak %in% c("Open", "In_behandeling"), na.rm = TRUE)
+      open_count <- sum(data$status_zaak == "Lopend", na.rm = TRUE)
       format(open_count, big.mark = " ")
     })
     
@@ -97,7 +97,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
       data <- analysis_data()
       if (is.null(data) || nrow(data) == 0) return("(0%)")
       
-      open_count <- sum(data$status_zaak %in% c("Open", "In_behandeling"), na.rm = TRUE)
+      open_count <- sum(data$status_zaak == "Lopend", na.rm = TRUE)
       percentage <- round((open_count / nrow(data)) * 100, 1)
       paste0("(", percentage, "%)")
     })
@@ -191,7 +191,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
             split_var == "type_dienst" ~ sapply(type_dienst, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_dienst", x)),
             split_var == "rechtsgebied" ~ sapply(rechtsgebied, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("rechtsgebied", x)),
             split_var == "status_zaak" ~ sapply(status_zaak, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("status_zaak", x)),
-            split_var == "aanvragende_directie" ~ sapply(aanvragende_directie, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("aanvragende_directie", x)),
+            split_var == "aanvragende_directie" ~ ifelse(is.na(directies) | directies == "" | directies == "Niet ingesteld", "Onbekend", directies),
             split_var == "type_wederpartij" ~ sapply(type_wederpartij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_wederpartij", x)),
             split_var == "hoedanigheid_partij" ~ sapply(hoedanigheid_partij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("hoedanigheid_partij", x)),
             TRUE ~ as.character(!!sym(split_var))
@@ -298,7 +298,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
             split_var == "type_dienst" ~ sapply(type_dienst, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_dienst", x)),
             split_var == "rechtsgebied" ~ sapply(rechtsgebied, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("rechtsgebied", x)),
             split_var == "status_zaak" ~ sapply(status_zaak, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("status_zaak", x)),
-            split_var == "aanvragende_directie" ~ sapply(aanvragende_directie, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("aanvragende_directie", x)),
+            split_var == "aanvragende_directie" ~ ifelse(is.na(directies) | directies == "" | directies == "Niet ingesteld", "Onbekend", directies),
             split_var == "type_wederpartij" ~ sapply(type_wederpartij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_wederpartij", x)),
             split_var == "hoedanigheid_partij" ~ sapply(hoedanigheid_partij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("hoedanigheid_partij", x)),
             TRUE ~ as.character(!!sym(split_var))
@@ -378,8 +378,8 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
               format(nrow(data), big.mark = " "),
               paste0(round((nrow(data) / nrow(raw_data())) * 100, 1), "%"),
               if(is.null(looptijd_data_export) || nrow(looptijd_data_export) == 0) "0" else format(round(mean(looptijd_data_export$looptijd_dagen, na.rm = TRUE), 0), big.mark = " "),
-              format(sum(data$status_zaak %in% c("Open", "In_behandeling"), na.rm = TRUE), big.mark = " "),
-              paste0(round((sum(data$status_zaak %in% c("Open", "In_behandeling"), na.rm = TRUE) / nrow(data)) * 100, 1), "%"),
+              format(sum(data$status_zaak == "Lopend", na.rm = TRUE), big.mark = " "),
+              paste0(round((sum(data$status_zaak == "Lopend", na.rm = TRUE) / nrow(data)) * 100, 1), "%"),
               format_currency(sum(as.numeric(data$financieel_risico), na.rm = TRUE))
             ),
             Datum_Export = format(Sys.time(), "%d-%m-%Y %H:%M:%S"),
@@ -431,7 +431,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
                 verdeling_split_var == "type_dienst" ~ sapply(type_dienst, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_dienst", x)),
                 verdeling_split_var == "rechtsgebied" ~ sapply(rechtsgebied, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("rechtsgebied", x)),
                 verdeling_split_var == "status_zaak" ~ sapply(status_zaak, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("status_zaak", x)),
-                verdeling_split_var == "aanvragende_directie" ~ sapply(aanvragende_directie, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("aanvragende_directie", x)),
+                verdeling_split_var == "aanvragende_directie" ~ ifelse(is.na(directies) | directies == "" | directies == "Niet ingesteld", "Onbekend", directies),
                 verdeling_split_var == "type_wederpartij" ~ sapply(type_wederpartij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_wederpartij", x)),
                 verdeling_split_var == "hoedanigheid_partij" ~ sapply(hoedanigheid_partij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("hoedanigheid_partij", x)),
                 TRUE ~ as.character(!!sym(verdeling_split_var))
@@ -459,7 +459,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
               "Type Dienst" = type_dienst,
               "Rechtsgebied" = rechtsgebied,
               "Status" = status_zaak,
-              "Aanvragende Directie" = aanvragende_directie,
+              "Aanvragende Directie" = directies,
               "Advocaat" = advocaat,
               "Advocatenkantoor" = adv_kantoor,
               "Budget WJZ (€)" = la_budget_wjz,
@@ -475,7 +475,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
               `Type Dienst` = sapply(`Type Dienst`, function(x) if(is.na(x)) "" else get_weergave_naam("type_dienst", x)),
               Rechtsgebied = sapply(Rechtsgebied, function(x) if(is.na(x)) "" else get_weergave_naam("rechtsgebied", x)),
               Status = sapply(Status, function(x) if(is.na(x)) "" else get_weergave_naam("status_zaak", x)),
-              `Aanvragende Directie` = sapply(`Aanvragende Directie`, function(x) if(is.na(x)) "" else get_weergave_naam("aanvragende_directie", x)),
+              `Aanvragende Directie` = ifelse(is.na(`Aanvragende Directie`) | `Aanvragende Directie` == "" | `Aanvragende Directie` == "Niet ingesteld", "", `Aanvragende Directie`),
               
               # Clean up fields
               Advocaat = ifelse(is.na(Advocaat), "", Advocaat),

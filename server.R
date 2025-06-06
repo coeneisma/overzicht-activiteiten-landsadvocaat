@@ -67,9 +67,9 @@ server <- function(input, output, session) {
     # Trigger refresh when data changes
     data_refresh_trigger()
     
-    # Load data from database
+    # Load data from database with directies
     tryCatch({
-      lees_zaken()
+      get_zaken_met_directies()
     }, error = function(e) {
       cli_alert_danger("Error loading data: {e$message}")
       show_notification("Fout bij laden data", type = "error")

@@ -90,7 +90,7 @@ data_management_ui <- function(id) {
           card_body(
             class = "text-center",
             h3(textOutput(ns("stat_open"), inline = TRUE), class = "text-warning mb-1"),
-            div("Open", class = "text-muted small")
+            div("Lopend", class = "text-muted small")
           )
         )
       ),

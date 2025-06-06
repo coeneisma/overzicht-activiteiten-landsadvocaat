@@ -204,9 +204,19 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
         }
       }
       
-      # Organization filters
+      # Organization filters - Directies (now a comma-separated string)
       if (!is.null(input$aanvragende_directie) && length(input$aanvragende_directie) > 0) {
-        filtered <- filtered %>% filter(aanvragende_directie %in% input$aanvragende_directie)
+        # Convert selected database values to display names for matching
+        selected_display_names <- sapply(input$aanvragende_directie, function(x) {
+          get_weergave_naam("aanvragende_directie", x)
+        })
+        
+        # Filter rows where directies column contains any of the selected display names
+        filtered <- filtered %>% 
+          filter(sapply(directies, function(dirs) {
+            if (is.na(dirs) || dirs == "" || dirs == "Niet ingesteld") return(FALSE)
+            any(sapply(selected_display_names, function(name) grepl(name, dirs, fixed = TRUE)))
+          }))
       }
       
       if (!is.null(input$advocaat) && length(input$advocaat) > 0) {
@@ -319,7 +329,7 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
             "Type Dienst" = type_dienst,
             "Rechtsgebied" = rechtsgebied,
             "Status" = status_zaak,
-            "Aanvragende Directie" = aanvragende_directie,
+            "Aanvragende Directie" = directies,
             "Budget WJZ" = la_budget_wjz,
             "Budget Andere Directie" = budget_andere_directie,
             "Financieel Risico" = financieel_risico,

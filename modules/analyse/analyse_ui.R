@@ -87,7 +87,7 @@ analyse_ui <- function(id) {
           card_body(
             class = "text-center",
             h3(textOutput(ns("kpi_open_cases"), inline = TRUE), class = "text-warning mb-1"),
-            div("Open Zaken", class = "text-muted small"),
+            div("Lopende Zaken", class = "text-muted small"),
             div(textOutput(ns("kpi_open_percentage"), inline = TRUE), class = "text-warning small")
           )
         )

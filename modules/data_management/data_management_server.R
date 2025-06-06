@@ -47,12 +47,12 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       format(filtered, big.mark = " ")  # Use space instead of dot
     })
     
-    # Open cases (from filtered data)
+    # Lopende cases (from filtered data)
     output$stat_open <- renderText({
       data <- filtered_data()
       if (is.null(data) || nrow(data) == 0) return("0")
       
-      open_count <- sum(data$status_zaak %in% c("Open", "In_behandeling"), na.rm = TRUE)
+      open_count <- sum(data$status_zaak == "Lopend", na.rm = TRUE)
       format(open_count, big.mark = " ")  # Use space instead of dot
     })
     
@@ -1094,6 +1094,30 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         tryCatch({
           # Prepare export data with proper formatting
           export_data <- data %>%
+            rowwise() %>%
+            mutate(
+              # Get directies for each zaak via many-to-many table for export
+              `Aanvragende Directie` = {
+                dirs <- get_zaak_directies(zaak_id)
+                if (length(dirs) == 0 || all(is.na(dirs))) {
+                  ""
+                } else {
+                  # Filter out NA and empty values
+                  dirs <- dirs[!is.na(dirs) & dirs != ""]
+                  if (length(dirs) == 0) {
+                    ""
+                  } else {
+                    # Convert each directie to display name
+                    weergave_namen <- character(length(dirs))
+                    for (i in seq_along(dirs)) {
+                      weergave_namen[i] <- get_weergave_naam("aanvragende_directie", dirs[i])
+                    }
+                    paste(weergave_namen, collapse = ", ")
+                  }
+                }
+              }
+            ) %>%
+            ungroup() %>%
             select(
               "Zaak ID" = zaak_id,
               "Datum Aanmaak" = datum_aanmaak,
@@ -1101,7 +1125,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               "Type Dienst" = type_dienst,
               "Rechtsgebied" = rechtsgebied,
               "Status" = status_zaak,
-              "Aanvragende Directie" = aanvragende_directie,
+              "Aanvragende Directie" = `Aanvragende Directie`,
               "Advocaat" = advocaat,
               "Advocatenkantoor" = adv_kantoor,
               "Budget WJZ (€)" = la_budget_wjz,
@@ -1125,7 +1149,6 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               `Type Dienst` = sapply(`Type Dienst`, function(x) if(is.na(x)) "" else get_weergave_naam("type_dienst", x)),
               Rechtsgebied = sapply(Rechtsgebied, function(x) if(is.na(x)) "" else get_weergave_naam("rechtsgebied", x)),
               Status = sapply(Status, function(x) if(is.na(x)) "" else get_weergave_naam("status_zaak", x)),
-              `Aanvragende Directie` = sapply(`Aanvragende Directie`, function(x) if(is.na(x)) "" else get_weergave_naam("aanvragende_directie", x)),
               
               # Format currency values
               `Budget WJZ (€)` = ifelse(is.na(`Budget WJZ (€)`) | `Budget WJZ (€)` == 0, "", as.numeric(`Budget WJZ (€)`)),

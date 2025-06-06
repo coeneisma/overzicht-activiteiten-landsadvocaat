@@ -34,8 +34,8 @@ source("utils/database.R")
 # Test database connection
 con <- get_db_connection()
 
-# Excel import operations
-source("import_excel_to_db_v2.R")
+# Excel import operations (current production script)
+source("import_excel_jaar_tabbladen.R")
 
 # Key database functions available:
 # - lees_zaken() - Read cases with filtering
@@ -129,6 +129,7 @@ The application uses Bootstrap 5 with OCW government branding. Maintain professi
 **Security**: digest for password hashing, session-based authentication
 **Data**: dplyr/tidyr for manipulation, plotly/ggplot2 for visualization
 **Visualization**: plotly for interactive charts, ggplot2 for static plots, RColorBrewer for colors
+**UI Enhancement**: colourpicker for color management in dropdowns
 **Export**: writexl for Excel generation with multi-tab support
 
 ## Important Implementation Notes
@@ -270,10 +271,15 @@ Key functions for dropdown management:
 - **Gebruikers**: 5 users (admin, test, Hans, excel_import, system)
 
 #### **Belangrijke Scripts:**
-- `import_excel_jaar_tabbladen.R` - Hoofdimport script voor productiedata
+- `import_excel_jaar_tabbladen.R` - Hoofdimport script voor productiedata (2020-2024 jaar-tabbladen)
 - `utils/database.R` - Uitgebreid met `get_status_kleuren()` en `get_dropdown_kleuren()` helper functies
 - `modules/data_management/` - Volledig uitgebreid met administratieve velden en kleurenweergave
 - `modules/instellingen/` - Kleurenbeheersysteem met wit = geen kleur optie
+
+#### **Import Script Versies:**
+- `import_excel_jaar_tabbladen.R` - **HUIDIGE PRODUCTIE**: Focus op jaar-tabbladen (74 zaken)
+- `import_excel_to_db_v2.R` - Vorige versie met volledige Excel parsing
+- `import_excel_to_db.R` - Originele import script
 
 ### 🔄 MOGELIJKE TOEKOMSTIGE UITBREIDINGEN
 
