@@ -179,3 +179,35 @@ Key functions for dropdown management:
 - Currency values as numbers for Excel calculations
 - Dates in dd-mm-yyyy format
 - Empty/NA values as empty strings
+
+## Current Development Status (Excel Import Feature)
+
+### Branch: feature/excel-import
+
+### Completed Tasks
+- ✅ Added `wjz_mt_lid` field to database and all forms (positioned after date)
+- ✅ Added `contactpersoon` field to database and all forms
+- ✅ Changed `aanvragende_directie` from dropdown to text input (supports multiple values)
+- ✅ Reorganized field order in forms: omschrijving is form-wide after advocaat fields
+- ✅ Made opmerkingen field form-wide under optional fields
+- ✅ Created directory mapping proposal in `directie_mapping_voorstel.md`
+- ✅ Imported 109 cases from Excel (using `import_excel_to_db_v2.R`)
+
+### Pending Tasks
+1. **Update import script** (`import_excel_to_db_v2.R`):
+   - Implement directory abbreviation mapping (see `directie_mapping_voorstel.md`)
+   - Extract contact person from person names in Excel (e.g., "PO/Bond" → directie: "PO", contactpersoon: "Bond")
+   - Add fallback for unclear abbreviations: "Opdrachtgever onduidelijk. Waarde in Excel-bestand: [value]"
+   
+2. **Fix user management issue**:
+   - No users visible in settings tab
+   - Need to create non-deletable `excel_import` user (like admin)
+   
+3. **Final import**:
+   - Clear database
+   - Re-import with updated mapping logic
+
+### Key Files
+- `import_excel_to_db_v2.R` - Current import script
+- `directie_mapping_voorstel.md` - Directory abbreviation mappings
+- `modules/data_management/data_management_server.R` - Updated forms with new fields
