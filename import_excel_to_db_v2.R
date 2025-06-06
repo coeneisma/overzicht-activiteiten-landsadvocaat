@@ -15,6 +15,100 @@ source("utils/database.R")
 # Configuratie
 EXCEL_PATH <- "bronbestanden/Overzicht Inschakeling LA 2022.xlsx"
 
+# Directory mapping van Excel afkortingen naar database waarden
+# Let op: deze moeten exact overeenkomen met waarden in dropdown_opties tabel
+DIRECTIE_MAPPING <- list(
+  # Basis directies
+  "PO" = "onderwijspersoneelenprimaironderwijs",
+  "VO" = "onderwijsprestatiesenvoortgezetonderwijs",
+  "BVE" = "middelbaarberoepsonderwijs",
+  "MBO" = "middelbaarberoepsonderwijs",
+  "HO&S" = "hogeronderwijsenstudiefinanciering",
+  "HOenS" = "hogeronderwijsenstudiefinanciering",
+  "HO" = "hogeronderwijsenstudiefinanciering",
+  "DUO-G" = "dienstuitvoeringonderwijs",
+  "DUO" = "dienstuitvoeringonderwijs",
+  "FEZ" = "financieeleconomischezaken",
+  "WJZ" = "wetgevingenjuridischezaken",
+  "BOA" = "bestuursondersteuningenadvies",
+  "MenC" = "mediaencreatieveindustrie",
+  "communicatie" = "mediaencreatieveindustrie",
+  "EK" = "erfgoedenkunsten",
+  "EGI" = "erfgoedenkunsten",
+  "Kennis" = "kennisstrategie",
+  "Onderwijsinspectie" = "inspectievanhetonderwijs",
+  "IvhO" = "inspectievanhetonderwijs",
+  "Inspectie" = "inspectievanhetonderwijs",
+  "K&S" = "kennisstrategie",
+  "IB" = "internationaalbeleid",
+  "OWB" = "onderzoekenwetenschapsbeleid",
+  "O&B" = "organisatieenbedrijfsvoering"
+)
+
+#' Map Excel directie afkorting naar database waarde
+#' @param excel_value De waarde uit Excel (bijv. "PO/VO" of "PO/Bond")
+#' @return Een lijst met directie en contactpersoon
+#' Let op: retourneert slechts één directie waarde (de eerste gevonden) voor dropdown compatibiliteit
+map_directie <- function(excel_value) {
+  if (is.na(excel_value) || excel_value == "" || toupper(excel_value) == "NA") {
+    return(list(directie = "NIET_INGESTELD", contactpersoon = NA))
+  }
+  
+  # Converteer naar uppercase voor matching
+  excel_value_clean <- trimws(as.character(excel_value))
+  
+  # Variabelen voor resultaat
+  directie_gevonden <- NA
+  contactpersoon <- NA
+  
+  # Split op slash voor combinaties en persoonsnamen
+  parts <- strsplit(excel_value_clean, "/")[[1]]
+  parts <- trimws(parts)
+  
+  for (part in parts) {
+    # Check of het een bekende directie afkorting is
+    part_upper <- toupper(part)
+    
+    # Zoek in mapping (case-insensitive)
+    for (afkorting in names(DIRECTIE_MAPPING)) {
+      if (toupper(afkorting) == part_upper) {
+        # Gebruik alleen de eerste gevonden directie voor dropdown compatibiliteit
+        if (is.na(directie_gevonden)) {
+          directie_gevonden <- DIRECTIE_MAPPING[[afkorting]]
+        }
+        break
+      }
+    }
+    
+    # Als het geen directie mapping is, check of het een persoonsnaam kan zijn
+    if (!part_upper %in% names(DIRECTIE_MAPPING)) {
+      # Check of het een persoonsnaam kan zijn (bevat spatie, streepje, of is langer dan 3 chars en geen afkorting)
+      if (grepl(" ", part) || grepl("-", part) || 
+          (nchar(part) > 3 && !part_upper %in% c("G", "(G)", "GS", "DG", "SG", "MT"))) {
+        # Dit is waarschijnlijk een persoonsnaam
+        if (is.na(contactpersoon)) {
+          contactpersoon <- part
+        } else {
+          contactpersoon <- paste(contactpersoon, part, sep = ", ")
+        }
+      }
+    }
+  }
+  
+  # Als geen directie gevonden, gebruik fallback
+  if (is.na(directie_gevonden)) {
+    directie_gevonden <- "NIET_INGESTELD"
+    # Log de originele waarde in opmerkingen veld (dit wordt later toegevoegd aan opmerkingen)
+    cat("  - Onbekende directie afkorting:", excel_value_clean, "-> NIET_INGESTELD\n")
+  }
+  
+  return(list(
+    directie = directie_gevonden,
+    contactpersoon = if(is.na(contactpersoon)) NA else contactpersoon,
+    originele_waarde = excel_value_clean
+  ))
+}
+
 #' Import zaken uit Excel sheet - Directe database insert
 import_sheet_direct <- function(con, sheet_name, status = "lopend", skip_rows = 1) {
   
@@ -74,12 +168,20 @@ import_sheet_direct <- function(con, sheet_name, status = "lopend", skip_rows = 
         next
       }
       
-      # Bepaal datum
-      datum_aanmaak <- if (!is.null(jaar)) {
+      # Bepaal datum - prioriteit aan "Datum" kolom uit Excel
+      datum_aanmaak <- if ("Datum" %in% names(row) && !is.na(row$Datum)) {
+        # Gebruik datum uit Excel kolom
+        tryCatch({
+          as.character(as.Date(row$Datum))
+        }, error = function(e) {
+          cat("  - Fout bij datum conversie voor zaak", zaak_id, ":", e$message, "\n")
+          as.character(Sys.Date())
+        })
+      } else if (!is.null(jaar)) {
+        # Fallback naar jaar uit sheet naam
         as.character(as.Date(paste0(jaar, "-01-01")))
-      } else if ("Datum" %in% names(row) && !is.na(row$Datum)) {
-        as.character(as.Date(row$Datum))
       } else {
+        # Laatste fallback naar huidige datum
         as.character(Sys.Date())
       }
       
@@ -94,28 +196,34 @@ import_sheet_direct <- function(con, sheet_name, status = "lopend", skip_rows = 
         }
       }
       
-      # Bereid data voor insert
+      # Map aanvragende directie en extract contactpersoon
+      directie_info <- if ("Aanvragende directie" %in% names(row)) {
+        map_directie(row$`Aanvragende directie`)
+      } else {
+        list(directie = "NIET_INGESTELD", contactpersoon = NA)
+      }
+      
+      # Bereid data voor insert (zonder aanvragende_directie want dat gaat via many-to-many)
+      # Gebruik expliciete NA values om "differing number of rows" fouten te voorkomen
       insert_data <- data.frame(
-        zaak_id = zaak_id,
-        datum_aanmaak = datum_aanmaak,
-        zaakaanduiding = if ("Zaakaanduiding" %in% names(row)) as.character(row$Zaakaanduiding) else NA,
-        aanvragende_directie = if ("Aanvragende directie" %in% names(row)) as.character(row$`Aanvragende directie`) else NA,
-        wjz_mt_lid = if ("WJZ-MT-lid" %in% names(row)) as.character(row$`WJZ-MT-lid`) else NA,
-        la_budget_wjz = la_budget_val,
-        type_dienst = if ("advies/verpl vertegenw/bestuursR" %in% names(row)) as.character(row$`advies/verpl vertegenw/bestuursR`) else NA,
-        status_zaak = status,
-        opmerkingen = if ("advocaat =Budget beleid" %in% names(row)) as.character(row$`advocaat =Budget beleid`) else NA,
-        aangemaakt_door = "excel_import",
-        laatst_gewijzigd = as.character(Sys.time()),
-        gewijzigd_door = "excel_import",
+        zaak_id = as.character(zaak_id),
+        datum_aanmaak = as.character(datum_aanmaak),
+        zaakaanduiding = if ("Zaakaanduiding" %in% names(row) && !is.na(row$Zaakaanduiding)) as.character(row$Zaakaanduiding) else as.character(NA),
+        contactpersoon = if (!is.na(directie_info$contactpersoon)) as.character(directie_info$contactpersoon) else as.character(NA),
+        wjz_mt_lid = if ("WJZ-MT-lid" %in% names(row) && !is.na(row$`WJZ-MT-lid`)) as.character(row$`WJZ-MT-lid`) else as.character(NA),
+        la_budget_wjz = if (!is.null(la_budget_val)) as.numeric(la_budget_val) else as.numeric(NA),
+        type_dienst = if ("advies/verpl vertegenw/bestuursR" %in% names(row) && !is.na(row$`advies/verpl vertegenw/bestuursR`)) as.character(row$`advies/verpl vertegenw/bestuursR`) else as.character(NA),
+        status_zaak = as.character(status),
+        opmerkingen = if ("advocaat =Budget beleid" %in% names(row) && !is.na(row$`advocaat =Budget beleid`)) as.character(row$`advocaat =Budget beleid`) else as.character(NA),
         stringsAsFactors = FALSE
       )
       
       # Verwijder kolommen met alleen NA
       insert_data <- insert_data[, !sapply(insert_data, function(x) all(is.na(x)))]
       
-      # Insert in database
-      dbAppendTable(con, "zaken", insert_data)
+      # Use the new voeg_zaak_toe function with many-to-many directies support
+      directies_voor_zaak <- if (!is.na(directie_info$directie)) list(directie_info$directie) else NULL
+      voeg_zaak_toe(insert_data, "excel_import", directies = directies_voor_zaak)
       success_count <- success_count + 1
       
     }, error = function(e) {

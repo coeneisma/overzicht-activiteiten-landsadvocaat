@@ -275,7 +275,7 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         on.exit(close_db_connection(con))
         
         DBI::dbGetQuery(con, "
-          SELECT waarde, weergave_naam, actief,
+          SELECT waarde, weergave_naam, actief, kleur,
                  aangemaakt_door, aangemaakt_op
           FROM dropdown_opties 
           WHERE categorie = ?
@@ -318,6 +318,9 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
           `Weergave Naam` = ifelse(is.na(weergave_naam) | weergave_naam == "", 
                                  waarde, weergave_naam),
           `Actief` = ifelse(actief == 1, "Ja", "Nee"),
+          `Kleur` = ifelse(is.na(kleur) | kleur == "", 
+                          "", 
+                          paste0('<span style="background-color: ', kleur, '; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px;">', kleur, '</span>')),
           `Aangemaakt` = format_date_nl(as.Date(aangemaakt_op)),
           # Don't show delete button for "niet_ingesteld" values or "Niet ingesteld" display names
           is_protected = waarde == "niet_ingesteld" | 
@@ -331,6 +334,7 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         select(
           "Waarde" = `Weergave Naam`,
           "Actief" = Actief,
+          "Kleur" = Kleur,
           "Door" = aangemaakt_door,
           "Aangemaakt" = Aangemaakt,
           "Acties" = Acties
@@ -727,6 +731,19 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
               value = TRUE
             ),
             
+            # Kleur picker met "geen kleur" optie
+            div(
+              colourInput(
+                session$ns("new_dropdown_kleur"),
+                "Kleur:",
+                value = "#FFFFFF",
+                palette = "limited",
+                allowedCols = c("#FFFFFF", "#17a2b8", "#28a745", "#ffc107", "#fd7e14", "#dc3545", "#6c757d", "#343a40", "#007bff", "#20c997", "#e83e8c"),
+                closeOnClick = TRUE
+              ),
+              div(class = "small text-muted mt-1", "Wit = geen kleur")
+            )
+            
           )
         ),
         
@@ -798,30 +815,51 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         con <- get_db_connection()
         on.exit(close_db_connection(con))
         
-        # Check if value exists
-        existing <- DBI::dbGetQuery(con, "
+        # Check if value exists (by waarde)
+        existing_waarde <- DBI::dbGetQuery(con, "
           SELECT COUNT(*) as count FROM dropdown_opties 
           WHERE categorie = ? AND waarde = ?
         ", list(category, generated_waarde))
         
-        if (existing$count > 0) {
+        # Check if display name exists (by weergave_naam)  
+        existing_weergave <- DBI::dbGetQuery(con, "
+          SELECT COUNT(*) as count FROM dropdown_opties 
+          WHERE categorie = ? AND weergave_naam = ?
+        ", list(category, input$new_dropdown_weergave))
+        
+        if (existing_waarde$count > 0) {
           output$dropdown_form_messages <- renderUI({
             div(class = "alert alert-warning", "Deze waarde bestaat al voor deze categorie")
           })
           return()
         }
         
+        if (existing_weergave$count > 0) {
+          output$dropdown_form_messages <- renderUI({
+            div(class = "alert alert-warning", "Deze weergave naam bestaat al voor deze categorie")
+          })
+          return()
+        }
+        
+        # Prepare kleur value (NULL becomes NA for database)
+        kleur_value <- if (is.null(input$new_dropdown_kleur) || input$new_dropdown_kleur == "#FFFFFF") {
+          NA_character_
+        } else {
+          input$new_dropdown_kleur
+        }
+        
         # Insert dropdown value
         DBI::dbExecute(con, "
           INSERT INTO dropdown_opties (
-            categorie, waarde, weergave_naam, actief,
+            categorie, waarde, weergave_naam, actief, kleur,
             aangemaakt_door, aangemaakt_op
-          ) VALUES (?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
         ", list(
           category,
           generated_waarde,
           input$new_dropdown_weergave,
           if (input$new_dropdown_active) 1 else 0,
+          kleur_value,
           current_user(),
           as.character(Sys.time())
         ))
@@ -1087,6 +1125,20 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
               value = (value_data$actief == 1)
             ),
             
+            # Kleur picker met "geen kleur" optie
+            conditionalPanel(
+              condition = "true",  # Altijd tonen voor nu
+              colourInput(
+                session$ns("edit_dropdown_kleur"),
+                "Kleur:",
+                value = ifelse(is.na(value_data$kleur) || value_data$kleur == "", "#FFFFFF", value_data$kleur),
+                palette = "limited",
+                allowedCols = c("#FFFFFF", "#17a2b8", "#28a745", "#ffc107", "#fd7e14", "#dc3545", "#6c757d", "#343a40", "#007bff", "#20c997", "#e83e8c"),
+                closeOnClick = TRUE
+              ),
+              div(class = "small text-muted mt-1", "Wit = geen kleur")
+            )
+            
           )
         ),
         
@@ -1197,9 +1249,10 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
     # Edit dropdown cancel
     observeEvent(input$btn_edit_dropdown_cancel, {
       removeModal()
-      # Reset click tracking so user can click same row again
+      # Reset click tracking
       last_clicked_dropdown_info(NULL)
     })
+    
     
     # Edit dropdown save
     observeEvent(input$btn_edit_dropdown_save, {
@@ -1243,15 +1296,23 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         con <- get_db_connection()
         on.exit(close_db_connection(con))
         
-        # Debug parameters before executing query (only update weergave_naam and actief)
+        # Debug parameters before executing query (update weergave_naam, actief, and kleur)
+        # Note: NULL needs to be converted to NA for database operations to maintain length 1
+        kleur_value <- if (is.null(input$edit_dropdown_kleur) || input$edit_dropdown_kleur == "#FFFFFF") {
+          NA_character_
+        } else {
+          as.character(input$edit_dropdown_kleur)
+        }
+        
         params <- list(
           weergave_naam = as.character(input$edit_dropdown_weergave),
           actief = as.integer(if (input$edit_dropdown_active) 1 else 0),
+          kleur = kleur_value,
           category = as.character(category),
           original_waarde = as.character(original_waarde)
         )
         
-        cli_alert_info("Update parameters: weergave_naam='{params$weergave_naam}', actief={params$actief}, category='{params$category}', original_waarde='{params$original_waarde}'")
+        cli_alert_info("Update parameters: weergave_naam='{params$weergave_naam}', actief={params$actief}, kleur='{ifelse(is.na(params$kleur), 'NULL', params$kleur)}', category='{params$category}', original_waarde='{params$original_waarde}'")
         
         # Check parameter lengths
         param_lengths <- sapply(params, length)
@@ -1260,10 +1321,23 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
           stop("All parameters must have length 1")
         }
         
-        # Only update weergave_naam and actief, keep database waarde unchanged
+        # Check if new weergave_naam already exists for another record in this category
+        existing_weergave <- DBI::dbGetQuery(con, "
+          SELECT COUNT(*) as count FROM dropdown_opties 
+          WHERE categorie = ? AND weergave_naam = ? AND waarde != ?
+        ", list(category, input$edit_dropdown_weergave, original_waarde))
+        
+        if (existing_weergave$count > 0) {
+          output$edit_dropdown_form_messages <- renderUI({
+            div(class = "alert alert-warning", "Deze weergave naam bestaat al voor deze categorie")
+          })
+          return()
+        }
+        
+        # Update weergave_naam, actief, and kleur, keep database waarde unchanged
         DBI::dbExecute(con, "
           UPDATE dropdown_opties SET 
-            weergave_naam = ?, actief = ?
+            weergave_naam = ?, actief = ?, kleur = ?
           WHERE categorie = ? AND waarde = ?
         ", unname(params))
         

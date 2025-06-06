@@ -419,39 +419,127 @@ lees_zaken <- function(filters = list(), con = NULL) {
 }
 
 #' Voeg nieuwe zaak toe
-voeg_zaak_toe <- function(zaak_data, gebruiker) {
+voeg_zaak_toe <- function(zaak_data, gebruiker, directies = NULL) {
   
   con <- get_db_connection()
   on.exit(close_db_connection(con))
   
-  # Voeg metadata toe
-  zaak_data$aangemaakt_door <- gebruiker
-  zaak_data$gewijzigd_door <- gebruiker
-  zaak_data$laatst_gewijzigd <- Sys.time()
-  
-  # Zorg dat datum_aanmaak een Date is
-  if (!"datum_aanmaak" %in% names(zaak_data)) {
-    zaak_data$datum_aanmaak <- Sys.Date()
-  }
-  
-  DBI::dbAppendTable(con, "zaken", zaak_data)
+  tryCatch({
+    dbBegin(con)
+    
+    # Extract directies if present in zaak_data
+    if (is.null(directies) && "aanvragende_directie" %in% names(zaak_data)) {
+      # Handle legacy single directie or new multi-directie format
+      if (!is.null(zaak_data$aanvragende_directie)) {
+        directies <- if (is.character(zaak_data$aanvragende_directie)) {
+          # Could be comma-separated for backwards compatibility
+          trimws(strsplit(zaak_data$aanvragende_directie, ",")[[1]])
+        } else {
+          zaak_data$aanvragende_directie
+        }
+      }
+      # Remove from zaak_data as it's handled separately now
+      zaak_data$aanvragende_directie <- NULL
+    }
+    
+    # Voeg metadata toe
+    zaak_data$aangemaakt_door <- gebruiker
+    zaak_data$gewijzigd_door <- gebruiker
+    zaak_data$laatst_gewijzigd <- Sys.time()
+    
+    # Zorg dat datum_aanmaak een Date is
+    if (!"datum_aanmaak" %in% names(zaak_data)) {
+      zaak_data$datum_aanmaak <- Sys.Date()
+    }
+    
+    # Insert zaak
+    DBI::dbAppendTable(con, "zaken", zaak_data)
+    
+    # Add directies if provided
+    if (!is.null(directies) && length(directies) > 0) {
+      directies <- directies[directies != "" & !is.na(directies)]
+      if (length(directies) > 0) {
+        for (directie in directies) {
+          dbExecute(con, "
+            INSERT INTO zaak_directies (zaak_id, directie) 
+            VALUES (?, ?)
+          ", params = list(zaak_data$zaak_id, directie))
+        }
+      }
+    }
+    
+    dbCommit(con)
+    
+  }, error = function(e) {
+    dbRollback(con)
+    stop("Fout bij toevoegen zaak: ", e$message)
+  })
 }
 
 #' Update bestaande zaak
-update_zaak <- function(zaak_id, zaak_data, gebruiker) {
+update_zaak <- function(zaak_id, zaak_data, gebruiker, directies = NULL) {
   
   con <- get_db_connection()
   on.exit(close_db_connection(con))
   
-  # Voeg metadata toe
-  zaak_data$gewijzigd_door <- gebruiker
-  zaak_data$laatst_gewijzigd <- Sys.time()
-  
-  # Bouw UPDATE query
-  set_columns <- paste(names(zaak_data), "= ?", collapse = ", ")
-  query <- paste0("UPDATE zaken SET ", set_columns, " WHERE zaak_id = ?")
-  
-  DBI::dbExecute(con, query, params = c(unlist(zaak_data), zaak_id))
+  tryCatch({
+    dbBegin(con)
+    
+    # Extract directies if present in zaak_data
+    if (is.null(directies) && "aanvragende_directie" %in% names(zaak_data)) {
+      # Handle legacy single directie or new multi-directie format
+      if (!is.null(zaak_data$aanvragende_directie)) {
+        directies <- if (is.character(zaak_data$aanvragende_directie)) {
+          # Could be comma-separated for backwards compatibility
+          trimws(strsplit(zaak_data$aanvragende_directie, ",")[[1]])
+        } else {
+          zaak_data$aanvragende_directie
+        }
+      }
+      # Remove from zaak_data as it's handled separately now
+      zaak_data$aanvragende_directie <- NULL
+    }
+    
+    # Voeg metadata toe
+    zaak_data$gewijzigd_door <- gebruiker
+    zaak_data$laatst_gewijzigd <- Sys.time()
+    
+    # Update zaak if there are fields to update
+    if (length(zaak_data) > 0) {
+      # Bouw UPDATE query
+      set_columns <- paste(names(zaak_data), "= ?", collapse = ", ")
+      query <- paste0("UPDATE zaken SET ", set_columns, " WHERE zaak_id = ?")
+      
+      # Create parameter list without names to avoid named/numbered parameter mix
+      params_list <- unname(c(as.list(zaak_data), list(zaak_id)))
+      
+      DBI::dbExecute(con, query, params = params_list)
+    }
+    
+    # Update directies if provided
+    if (!is.null(directies)) {
+      # Delete existing directies
+      dbExecute(con, "DELETE FROM zaak_directies WHERE zaak_id = ?", 
+                params = list(zaak_id))
+      
+      # Add new directies
+      directies <- directies[directies != "" & !is.na(directies)]
+      if (length(directies) > 0) {
+        for (directie in directies) {
+          dbExecute(con, "
+            INSERT INTO zaak_directies (zaak_id, directie) 
+            VALUES (?, ?)
+          ", params = list(zaak_id, directie))
+        }
+      }
+    }
+    
+    dbCommit(con)
+    
+  }, error = function(e) {
+    dbRollback(con)
+    stop("Fout bij updaten zaak: ", e$message)
+  })
 }
 
 #' Verwijder zaak (soft delete mogelijk door status aan te passen)
@@ -474,6 +562,51 @@ verwijder_zaak <- function(zaak_id, hard_delete = FALSE) {
     warning("Error deleting zaak ", zaak_id, ": ", e$message)
     return(FALSE)
   })
+}
+
+# =============================================================================
+# ZAAK DIRECTIES (MANY-TO-MANY) HELPER FUNCTIES
+# =============================================================================
+
+#' Haal directies op voor een zaak
+get_zaak_directies <- function(zaak_id) {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  result <- dbGetQuery(con, "
+    SELECT DISTINCT d.directie
+    FROM zaak_directies d
+    WHERE d.zaak_id = ?
+    ORDER BY d.directie
+  ", params = list(zaak_id))
+  
+  return(result$directie)
+}
+
+#' Haal alle zaken met hun directies op voor display
+get_zaken_met_directies <- function() {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  # Haal alle zaken op
+  zaken <- lees_zaken()
+  
+  if (nrow(zaken) > 0) {
+    # Voor elke zaak, haal de directies op
+    zaken$directies <- sapply(zaken$zaak_id, function(id) {
+      dirs <- get_zaak_directies(id)
+      if (length(dirs) == 0) return("Niet ingesteld")
+      
+      # Converteer naar weergave namen
+      weergave_namen <- sapply(dirs, function(d) {
+        get_weergave_naam("aanvragende_directie", d)
+      })
+      
+      return(paste(weergave_namen, collapse = ", "))
+    })
+  }
+  
+  return(zaken)
 }
 
 # =============================================================================
@@ -560,4 +693,77 @@ get_advocatenkantoren_autocomplete <- function() {
     pull(adv_kantoor)
   
   return(kantoren)
+}
+
+#' Krijg status kleuren voor dropdown weergave
+#' @param con Database connectie (optioneel)
+#' @return Named list met status waarden en hun kleuren
+get_status_kleuren <- function(con = NULL) {
+  
+  if (is.null(con)) {
+    con <- get_db_connection()
+    on.exit(close_db_connection(con))
+  }
+  
+  # Haal status kleuren op uit dropdown_opties
+  kleuren_data <- tbl(con, "dropdown_opties") %>%
+    filter(categorie == "status_zaak", actief == 1) %>%
+    select(waarde, kleur) %>%
+    collect()
+  
+  # Converteer naar named list
+  kleuren <- setNames(kleuren_data$kleur, kleuren_data$waarde)
+  
+  # Voeg default kleur toe voor onbekende statussen
+  if (!"default" %in% names(kleuren)) {
+    kleuren[["default"]] <- "#6c757d"
+  }
+  
+  return(kleuren)
+}
+
+#' Haal kleuren op voor alle dropdown categorieën uit de database
+#' 
+#' @param categorie De dropdown categorie (optioneel, als NULL dan alle categorieën)
+#' @param con Database connectie (optioneel)
+#' @return Named list met waarden en hun kleuren per categorie
+get_dropdown_kleuren <- function(categorie = NULL, con = NULL) {
+  
+  if (is.null(con)) {
+    con <- get_db_connection()
+    on.exit(close_db_connection(con))
+  }
+  
+  # Query bouwen
+  query <- tbl(con, "dropdown_opties") %>%
+    filter(actief == 1) %>%
+    select(categorie, waarde, kleur)
+  
+  # Filter op categorie als opgegeven
+  if (!is.null(categorie)) {
+    query <- query %>% filter(categorie == !!categorie)
+  }
+  
+  kleuren_data <- query %>% collect()
+  
+  # Groepeer per categorie
+  result <- list()
+  for (cat in unique(kleuren_data$categorie)) {
+    cat_data <- kleuren_data[kleuren_data$categorie == cat, ]
+    kleuren <- setNames(cat_data$kleur, cat_data$waarde)
+    
+    # Voeg default kleur toe voor onbekende waarden
+    if (!"default" %in% names(kleuren)) {
+      kleuren[["default"]] <- "#f8f9fa"
+    }
+    
+    result[[cat]] <- kleuren
+  }
+  
+  # Als specifieke categorie gevraagd, return direct de kleuren
+  if (!is.null(categorie) && categorie %in% names(result)) {
+    return(result[[categorie]])
+  }
+  
+  return(result)
 }

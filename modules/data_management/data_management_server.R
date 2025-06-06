@@ -95,8 +95,35 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         ))
       }
       
-      # Prepare display data (basic columns only)
+      # Get colors for all dropdown categories
+      alle_kleuren <- get_dropdown_kleuren()
+      
+      # Prepare display data with many-to-many directies
       display_data <- data %>%
+        rowwise() %>%
+        mutate(
+          # Get directies for each zaak via many-to-many table (plain text for formatStyle)
+          Directie = {
+            dirs <- get_zaak_directies(zaak_id)
+            if (length(dirs) == 0 || all(is.na(dirs))) {
+              "Niet ingesteld"
+            } else {
+              # Filter out NA and empty values
+              dirs <- dirs[!is.na(dirs) & dirs != ""]
+              if (length(dirs) == 0) {
+                "Niet ingesteld"
+              } else {
+                # Convert each directie to display name (plain text)
+                weergave_namen <- character(length(dirs))
+                for (i in seq_along(dirs)) {
+                  weergave_namen[i] <- get_weergave_naam("aanvragende_directie", dirs[i])
+                }
+                paste(weergave_namen, collapse = ", ")
+              }
+            }
+          }
+        ) %>%
+        ungroup() %>%
         select(
           "Zaak ID" = zaak_id,
           "Datum" = datum_aanmaak,
@@ -104,17 +131,16 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           "Type Dienst" = type_dienst,
           "Rechtsgebied" = rechtsgebied,
           "Status" = status_zaak,
-          "Directie" = aanvragende_directie,
+          "Directie" = Directie,
           "Advocaat" = advocaat,
           "Kantoor" = adv_kantoor
         ) %>%
         mutate(
           Datum = format_date_nl(Datum),
-          # Convert database values to display names
+          # Convert database values to display names (colors will be applied via formatStyle)
           `Type Dienst` = sapply(`Type Dienst`, function(x) get_weergave_naam("type_dienst", x)),
           Rechtsgebied = sapply(Rechtsgebied, function(x) get_weergave_naam("rechtsgebied", x)),
           Status = sapply(Status, function(x) get_weergave_naam("status_zaak", x)),
-          Directie = sapply(Directie, function(x) get_weergave_naam("aanvragende_directie", x)),
           # Truncate long descriptions
           Omschrijving = ifelse(
             nchar(Omschrijving) > 60, 
@@ -123,8 +149,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           )
         )
       
-      # Create simple DataTable
-      DT::datatable(
+      # Create DataTable with background colors
+      dt <- DT::datatable(
         display_data,
         selection = 'none',  # Disable row selection highlighting
         options = list(
@@ -153,15 +179,123 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         rownames = FALSE,
         class = "table table-striped table-hover compact",
         escape = FALSE
-      ) %>%
-        # Simple status color coding
-        DT::formatStyle(
-          "Status",
-          backgroundColor = DT::styleEqual(
-            c("Open", "In_behandeling", "Afgerond", "On_hold"),
-            c("#fff3cd", "#d1ecf1", "#d4edda", "#f8d7da")
-          )
-        )
+      )
+      
+      # Apply background colors using formatStyle
+      
+      # Status column styling
+      if ("status_zaak" %in% names(alle_kleuren)) {
+        status_kleuren <- alle_kleuren[["status_zaak"]]
+        
+        # Get all unique weergave values and their colors
+        weergave_values <- character()
+        color_values <- character()
+        text_colors <- character()
+        
+        for (waarde in names(status_kleuren)) {
+          if (!is.na(status_kleuren[[waarde]]) && status_kleuren[[waarde]] != "") {
+            weergave <- get_weergave_naam("status_zaak", waarde)
+            weergave_values <- c(weergave_values, weergave)
+            color_values <- c(color_values, status_kleuren[[waarde]])
+            text_colors <- c(text_colors, ifelse(waarde == "Lopend", "black", "white"))
+          }
+        }
+        
+        if (length(weergave_values) > 0) {
+          dt <- dt %>% 
+            DT::formatStyle(
+              "Status",
+              backgroundColor = DT::styleEqual(weergave_values, color_values),
+              color = "black",
+              fontWeight = "bold"
+            )
+        }
+      }
+      
+      # Type Dienst column styling
+      if ("type_dienst" %in% names(alle_kleuren)) {
+        type_kleuren <- alle_kleuren[["type_dienst"]]
+        
+        weergave_values <- character()
+        color_values <- character()
+        text_colors <- character()
+        
+        for (waarde in names(type_kleuren)) {
+          if (!is.na(type_kleuren[[waarde]]) && type_kleuren[[waarde]] != "") {
+            weergave <- get_weergave_naam("type_dienst", waarde)
+            weergave_values <- c(weergave_values, weergave)
+            color_values <- c(color_values, type_kleuren[[waarde]])
+            text_colors <- c(text_colors, "white")
+          }
+        }
+        
+        if (length(weergave_values) > 0) {
+          dt <- dt %>% 
+            DT::formatStyle(
+              "Type Dienst",
+              backgroundColor = DT::styleEqual(weergave_values, color_values),
+              color = "black"
+            )
+        }
+      }
+      
+      # Rechtsgebied column styling
+      if ("rechtsgebied" %in% names(alle_kleuren)) {
+        rechts_kleuren <- alle_kleuren[["rechtsgebied"]]
+        
+        weergave_values <- character()
+        color_values <- character()
+        text_colors <- character()
+        
+        for (waarde in names(rechts_kleuren)) {
+          if (!is.na(rechts_kleuren[[waarde]]) && rechts_kleuren[[waarde]] != "") {
+            weergave <- get_weergave_naam("rechtsgebied", waarde)
+            weergave_values <- c(weergave_values, weergave)
+            color_values <- c(color_values, rechts_kleuren[[waarde]])
+            text_colors <- c(text_colors, "white")
+          }
+        }
+        
+        if (length(weergave_values) > 0) {
+          dt <- dt %>% 
+            DT::formatStyle(
+              "Rechtsgebied",
+              backgroundColor = DT::styleEqual(weergave_values, color_values),
+              color = "black"
+            )
+        }
+      }
+      
+      # Directie column styling (more complex due to comma-separated values)
+      if ("aanvragende_directie" %in% names(alle_kleuren)) {
+        directie_kleuren <- alle_kleuren[["aanvragende_directie"]]
+        
+        # For directies, we need to check if any of the comma-separated values has a color
+        # We'll use a simple approach: if the cell contains exactly one directie that has a color, apply it
+        weergave_values <- character()
+        color_values <- character()
+        text_colors <- character()
+        
+        for (waarde in names(directie_kleuren)) {
+          if (!is.na(directie_kleuren[[waarde]]) && directie_kleuren[[waarde]] != "") {
+            weergave <- get_weergave_naam("aanvragende_directie", waarde)
+            weergave_values <- c(weergave_values, weergave)
+            color_values <- c(color_values, directie_kleuren[[waarde]])
+            text_colors <- c(text_colors, "white")
+          }
+        }
+        
+        if (length(weergave_values) > 0) {
+          dt <- dt %>% 
+            DT::formatStyle(
+              "Directie",
+              backgroundColor = DT::styleEqual(weergave_values, color_values),
+              color = "black"
+            )
+        }
+      }
+      
+      dt
       
     }, server = TRUE)
     
@@ -249,7 +383,15 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 strong("WJZ MT-lid: "), ifelse(is.na(zaak_data$wjz_mt_lid), "-", zaak_data$wjz_mt_lid), br(),
                 strong("Status: "), ifelse(is.na(zaak_data$status_zaak), "-", get_weergave_naam("status_zaak", zaak_data$status_zaak)), br(),
                 strong("Type Dienst: "), ifelse(is.na(zaak_data$type_dienst), "-", get_weergave_naam("type_dienst", zaak_data$type_dienst)), br(),
-                strong("Aanvragende Directie: "), ifelse(is.na(zaak_data$aanvragende_directie), "-", get_weergave_naam("aanvragende_directie", zaak_data$aanvragende_directie)), br(),
+                strong("Aanvragende Directie: "), {
+                  dirs <- get_zaak_directies(zaak_data$zaak_id)
+                  if (length(dirs) == 0) {
+                    "-"
+                  } else {
+                    weergave_namen <- sapply(dirs, function(d) get_weergave_naam("aanvragende_directie", d))
+                    paste(weergave_namen, collapse = ", ")
+                  }
+                }, br(),
                 strong("Contactpersoon: "), ifelse(is.na(zaak_data$contactpersoon), "-", zaak_data$contactpersoon)
             ),
             div(class = "col-md-6",
@@ -279,6 +421,29 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 format_currency(as.numeric(zaak_data$financieel_risico))
             )
           ),
+          
+          h5("Administratieve Gegevens", class = "border-bottom pb-2 mb-3"),
+          
+          div(
+            class = "row mb-2",
+            div(class = "col-md-6",
+                strong("Kostenplaats: "), ifelse(is.na(zaak_data$kostenplaats), "-", zaak_data$kostenplaats), br(),
+                strong("Intern Ordernummer: "), ifelse(is.na(zaak_data$intern_ordernummer), "-", zaak_data$intern_ordernummer), br(),
+                strong("Grootboekrekening: "), ifelse(is.na(zaak_data$grootboekrekening), "-", zaak_data$grootboekrekening)
+            ),
+            div(class = "col-md-6",
+                strong("Budgetcode: "), ifelse(is.na(zaak_data$budgetcode), "-", zaak_data$budgetcode), br(),
+                strong("ProZa-link: "), ifelse(is.na(zaak_data$proza_link), "-", zaak_data$proza_link), br(),
+                strong("Locatie Formulier: "), ifelse(is.na(zaak_data$locatie_formulier), "-", zaak_data$locatie_formulier)
+            )
+          ),
+          
+          if (!is.na(zaak_data$budget_beleid) && zaak_data$budget_beleid != "") {
+            div(
+              h5("Advocaat Budget Beleid", class = "border-bottom pb-2 mb-3"),
+              p(zaak_data$budget_beleid)
+            )
+          },
           
           if (!is.na(zaak_data$opmerkingen) && zaak_data$opmerkingen != "") {
             div(
@@ -356,11 +521,16 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 value = ifelse(is.na(zaak_data$wjz_mt_lid), "", zaak_data$wjz_mt_lid)
               ),
               
-              textInput(
+              selectizeInput(
                 session$ns("edit_form_aanvragende_directie"),
-                "Aanvragende Directie: *",
-                value = ifelse(is.na(zaak_data$aanvragende_directie), "", zaak_data$aanvragende_directie),
-                placeholder = "bijv. PO, VO, of meerdere gescheiden door komma"
+                "Aanvragende Directie:",
+                choices = NULL,
+                selected = NULL,
+                multiple = TRUE,
+                options = list(
+                  placeholder = "Selecteer één of meer directies",
+                  maxItems = 5
+                )
               ),
               
               textInput(
@@ -376,7 +546,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               
               selectInput(
                 session$ns("edit_form_type_dienst"),
-                "Type Dienst: *",
+                "Type Dienst:",
                 choices = c("Selecteer..." = "", dropdown_choices$type_dienst),
                 selected = ifelse(is.na(zaak_data$type_dienst), "", zaak_data$type_dienst),
                 multiple = FALSE
@@ -384,7 +554,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               
               selectInput(
                 session$ns("edit_form_rechtsgebied"),
-                "Rechtsgebied: *",
+                "Rechtsgebied:",
                 choices = c("Selecteer..." = "", dropdown_choices$rechtsgebied),
                 selected = ifelse(is.na(zaak_data$rechtsgebied), "", zaak_data$rechtsgebied)
               ),
@@ -420,7 +590,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               class = "col-12",
               textAreaInput(
                 session$ns("edit_form_omschrijving"),
-                "Omschrijving: *",
+                "Omschrijving:",
                 value = ifelse(is.na(zaak_data$omschrijving), "", zaak_data$omschrijving),
                 rows = 3
               )
@@ -431,6 +601,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           hr(),
           h6("Optionele Velden", class = "text-muted"),
           
+          # Financiële velden
           div(
             class = "row",
             
@@ -464,6 +635,97 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 value = ifelse(is.na(zaak_data$financieel_risico), 0, zaak_data$financieel_risico),
                 min = 0,
                 step = 10000
+              )
+            )
+          ),
+          
+          # Administratieve velden
+          h6("Administratieve Gegevens", class = "text-muted mt-3"),
+          
+          div(
+            class = "row",
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("edit_form_kostenplaats"),
+                "Kostenplaats:",
+                value = ifelse(is.na(zaak_data$kostenplaats), "", zaak_data$kostenplaats),
+                placeholder = "bijv. 72200"
+              )
+            ),
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("edit_form_intern_ordernummer"),
+                "Intern Ordernummer:",
+                value = ifelse(is.na(zaak_data$intern_ordernummer), "", zaak_data$intern_ordernummer),
+                placeholder = "bijv. 9070205"
+              )
+            )
+          ),
+          
+          div(
+            class = "row mt-2",
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("edit_form_grootboekrekening"),
+                "Grootboekrekening:",
+                value = ifelse(is.na(zaak_data$grootboekrekening), "", zaak_data$grootboekrekening),
+                placeholder = "bijv. 440170"
+              )
+            ),
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("edit_form_budgetcode"),
+                "Budgetcode:",
+                value = ifelse(is.na(zaak_data$budgetcode), "", zaak_data$budgetcode),
+                placeholder = "Budgetcode indien van toepassing"
+              )
+            )
+          ),
+          
+          div(
+            class = "row mt-2",
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("edit_form_proza_link"),
+                "ProZa-link:",
+                value = ifelse(is.na(zaak_data$proza_link), "", zaak_data$proza_link),
+                placeholder = "Link naar ProZa systeem"
+              )
+            ),
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("edit_form_locatie_formulier"),
+                "Locatie Formulier:",
+                value = ifelse(is.na(zaak_data$locatie_formulier), "", zaak_data$locatie_formulier),
+                placeholder = "Waar bevindt zich het formulier?"
+              )
+            )
+          ),
+          
+          # Budget beleid tekstveld
+          div(
+            class = "row mt-2",
+            
+            div(
+              class = "col-12",
+              textAreaInput(
+                session$ns("edit_form_budget_beleid"),
+                "Advocaat Budget Beleid:",
+                value = ifelse(is.na(zaak_data$budget_beleid), "", zaak_data$budget_beleid),
+                rows = 2,
+                placeholder = "Beleidsinformatie over budget en advocaat inzet..."
               )
             )
           ),
@@ -504,6 +766,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           )
         )
       ))
+      
+      # Update dropdown choices and selected values for the edit form
+      updateSelectizeInput(session, "edit_form_aanvragende_directie",
+                          choices = dropdown_choices$aanvragende_directie,
+                          selected = get_zaak_directies(zaak_data$zaak_id))
     }
     
     # ========================================================================
@@ -553,10 +820,15 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 placeholder = "Naam van het WJZ MT-lid"
               ),
               
-              textInput(
+              selectizeInput(
                 session$ns("form_aanvragende_directie"),
-                "Aanvragende Directie: *",
-                placeholder = "bijv. PO, VO, of meerdere gescheiden door komma"
+                "Aanvragende Directie:",
+                choices = NULL,
+                multiple = TRUE,
+                options = list(
+                  placeholder = "Selecteer één of meer directies",
+                  maxItems = 5
+                )
               ),
               
               textInput(
@@ -572,14 +844,14 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               
               selectInput(
                 session$ns("form_type_dienst"),
-                "Type Dienst: *",
+                "Type Dienst:",
                 choices = c("Selecteer..." = "", dropdown_choices$type_dienst),
                 multiple = FALSE
               ),
               
               selectInput(
                 session$ns("form_rechtsgebied"),
-                "Rechtsgebied: *",
+                "Rechtsgebied:",
                 choices = c("Selecteer..." = "", dropdown_choices$rechtsgebied)
               ),
               
@@ -611,7 +883,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               class = "col-12",
               textAreaInput(
                 session$ns("form_omschrijving"),
-                "Omschrijving: *",
+                "Omschrijving:",
                 rows = 3,
                 placeholder = "Korte beschrijving van de zaak..."
               )
@@ -622,6 +894,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           hr(),
           h6("Optionele Velden", class = "text-muted"),
           
+          # Financiële velden
           div(
             class = "row",
             
@@ -655,6 +928,90 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 value = 0,
                 min = 0,
                 step = 10000
+              )
+            )
+          ),
+          
+          # Administratieve velden
+          h6("Administratieve Gegevens", class = "text-muted mt-3"),
+          
+          div(
+            class = "row",
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("form_kostenplaats"),
+                "Kostenplaats:",
+                placeholder = "bijv. 72200"
+              )
+            ),
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("form_intern_ordernummer"),
+                "Intern Ordernummer:",
+                placeholder = "bijv. 9070205"
+              )
+            )
+          ),
+          
+          div(
+            class = "row mt-2",
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("form_grootboekrekening"),
+                "Grootboekrekening:",
+                placeholder = "bijv. 440170"
+              )
+            ),
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("form_budgetcode"),
+                "Budgetcode:",
+                placeholder = "Budgetcode indien van toepassing"
+              )
+            )
+          ),
+          
+          div(
+            class = "row mt-2",
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("form_proza_link"),
+                "ProZa-link:",
+                placeholder = "Link naar ProZa systeem"
+              )
+            ),
+            
+            div(
+              class = "col-md-6",
+              textInput(
+                session$ns("form_locatie_formulier"),
+                "Locatie Formulier:",
+                placeholder = "Waar bevindt zich het formulier?"
+              )
+            )
+          ),
+          
+          # Budget beleid tekstveld
+          div(
+            class = "row mt-2",
+            
+            div(
+              class = "col-12",
+              textAreaInput(
+                session$ns("form_budget_beleid"),
+                "Advocaat Budget Beleid:",
+                rows = 2,
+                placeholder = "Beleidsinformatie over budget en advocaat inzet..."
               )
             )
           ),
@@ -693,6 +1050,10 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           )
         )
       ))
+      
+      # Update dropdown choices for the form
+      updateSelectizeInput(session, "form_aanvragende_directie",
+                          choices = dropdown_choices$aanvragende_directie)
     }
     
     # ========================================================================
@@ -925,25 +1286,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         errors <- c(errors, "Zaak ID is verplicht")
       }
       
-      if (is.null(input$edit_form_omschrijving) || input$edit_form_omschrijving == "") {
-        valid <- FALSE
-        errors <- c(errors, "Omschrijving is verplicht")
-      }
-      
-      if (is.null(input$edit_form_aanvragende_directie) || input$edit_form_aanvragende_directie == "") {
-        valid <- FALSE
-        errors <- c(errors, "Aanvragende directie is verplicht")
-      }
-      
-      if (is.null(input$edit_form_type_dienst) || input$edit_form_type_dienst == "") {
-        valid <- FALSE
-        errors <- c(errors, "Type dienst is verplicht")
-      }
-      
-      if (is.null(input$edit_form_rechtsgebied) || input$edit_form_rechtsgebied == "") {
-        valid <- FALSE
-        errors <- c(errors, "Rechtsgebied is verplicht")
-      }
+      # Omschrijving, aanvragende_directie, type_dienst en rechtsgebied zijn nu optioneel
+      # Alleen zaak_id, datum_aanmaak en status_zaak zijn verplicht
       
       if (is.null(input$edit_form_status_zaak) || input$edit_form_status_zaak == "") {
         valid <- FALSE
@@ -1000,21 +1344,33 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       tryCatch({
         
         # Prepare updated form data
+        # Extract directies for separate handling
+        selected_directies <- input$edit_form_aanvragende_directie
+        
         updated_data <- data.frame(
           zaak_id = input$edit_form_zaak_id,
           datum_aanmaak = as.character(input$edit_form_datum_aanmaak),
-          omschrijving = input$edit_form_omschrijving,
-          aanvragende_directie = input$edit_form_aanvragende_directie,
-          wjz_mt_lid = input$edit_form_wjz_mt_lid,
-          contactpersoon = input$edit_form_contactpersoon,
-          type_dienst = input$edit_form_type_dienst,
-          rechtsgebied = input$edit_form_rechtsgebied,
+          omschrijving = if(is.null(input$edit_form_omschrijving) || input$edit_form_omschrijving == "") NA else input$edit_form_omschrijving,
+          wjz_mt_lid = if(is.null(input$edit_form_wjz_mt_lid) || input$edit_form_wjz_mt_lid == "") NA else input$edit_form_wjz_mt_lid,
+          contactpersoon = if(is.null(input$edit_form_contactpersoon) || input$edit_form_contactpersoon == "") NA else input$edit_form_contactpersoon,
+          type_dienst = if(is.null(input$edit_form_type_dienst) || input$edit_form_type_dienst == "") NA else input$edit_form_type_dienst,
+          rechtsgebied = if(is.null(input$edit_form_rechtsgebied) || input$edit_form_rechtsgebied == "") NA else input$edit_form_rechtsgebied,
           status_zaak = input$edit_form_status_zaak,
           advocaat = if(is.null(input$edit_form_advocaat) || input$edit_form_advocaat == "" || trimws(input$edit_form_advocaat) == "") NA else trimws(input$edit_form_advocaat),
           adv_kantoor = if(is.null(input$edit_form_adv_kantoor) || input$edit_form_adv_kantoor == "" || trimws(input$edit_form_adv_kantoor) == "") NA else trimws(input$edit_form_adv_kantoor),
           la_budget_wjz = if(is.null(input$edit_form_la_budget_wjz)) 0 else input$edit_form_la_budget_wjz,
           budget_andere_directie = if(is.null(input$edit_form_budget_andere_directie)) 0 else input$edit_form_budget_andere_directie,
           financieel_risico = if(is.null(input$edit_form_financieel_risico)) 0 else input$edit_form_financieel_risico,
+          
+          # Nieuwe administratieve velden
+          kostenplaats = if(is.null(input$edit_form_kostenplaats) || input$edit_form_kostenplaats == "") NA else input$edit_form_kostenplaats,
+          intern_ordernummer = if(is.null(input$edit_form_intern_ordernummer) || input$edit_form_intern_ordernummer == "") NA else input$edit_form_intern_ordernummer,
+          grootboekrekening = if(is.null(input$edit_form_grootboekrekening) || input$edit_form_grootboekrekening == "") NA else input$edit_form_grootboekrekening,
+          budgetcode = if(is.null(input$edit_form_budgetcode) || input$edit_form_budgetcode == "") NA else input$edit_form_budgetcode,
+          proza_link = if(is.null(input$edit_form_proza_link) || input$edit_form_proza_link == "") NA else input$edit_form_proza_link,
+          locatie_formulier = if(is.null(input$edit_form_locatie_formulier) || input$edit_form_locatie_formulier == "") NA else input$edit_form_locatie_formulier,
+          budget_beleid = if(is.null(input$edit_form_budget_beleid) || input$edit_form_budget_beleid == "") NA else input$edit_form_budget_beleid,
+          
           opmerkingen = if(is.null(input$edit_form_opmerkingen) || input$edit_form_opmerkingen == "") NA else input$edit_form_opmerkingen,
           stringsAsFactors = FALSE
         )
@@ -1022,56 +1378,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         # Update in database using original zaak_id
         original_id <- original_zaak_id()
         
-        # Use direct SQL update to avoid parameter issues
-        tryCatch({
-          con <- get_db_connection()
-          
-          # Build UPDATE query with individual fields
-          DBI::dbExecute(con, "
-            UPDATE zaken SET 
-              zaak_id = ?,
-              datum_aanmaak = ?,
-              omschrijving = ?,
-              aanvragende_directie = ?,
-              type_dienst = ?,
-              rechtsgebied = ?,
-              status_zaak = ?,
-              advocaat = ?,
-              adv_kantoor = ?,
-              la_budget_wjz = ?,
-              budget_andere_directie = ?,
-              financieel_risico = ?,
-              opmerkingen = ?,
-              laatst_gewijzigd = ?,
-              gewijzigd_door = ?
-            WHERE zaak_id = ?
-          ", list(
-            updated_data$zaak_id,
-            updated_data$datum_aanmaak,
-            updated_data$omschrijving,
-            updated_data$aanvragende_directie,
-            updated_data$type_dienst,
-            updated_data$rechtsgebied,
-            updated_data$status_zaak,
-            updated_data$advocaat,
-            updated_data$adv_kantoor,
-            updated_data$la_budget_wjz,
-            updated_data$budget_andere_directie,
-            updated_data$financieel_risico,
-            updated_data$opmerkingen,
-            as.character(Sys.time()),
-            current_user(),
-            original_id
-          ))
-          
-          close_db_connection(con)
-          
-        }, error = function(e) {
-          if (exists("con") && DBI::dbIsValid(con)) {
-            close_db_connection(con)
-          }
-          stop(e$message)
-        })
+        # Use the new update_zaak function with many-to-many support
+        update_zaak(original_id, updated_data, current_user(), directies = selected_directies)
         
         cli_alert_success("Case updated: {original_id} -> {updated_data$zaak_id}")
         show_notification(paste("Zaak bijgewerkt:", updated_data$zaak_id), type = "message")
@@ -1104,25 +1412,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         errors <- c(errors, "Zaak ID is verplicht")
       }
       
-      if (is.null(input$form_omschrijving) || input$form_omschrijving == "") {
-        valid <- FALSE
-        errors <- c(errors, "Omschrijving is verplicht")
-      }
-      
-      if (is.null(input$form_aanvragende_directie) || input$form_aanvragende_directie == "") {
-        valid <- FALSE
-        errors <- c(errors, "Aanvragende directie is verplicht")
-      }
-      
-      if (is.null(input$form_type_dienst) || input$form_type_dienst == "") {
-        valid <- FALSE
-        errors <- c(errors, "Type dienst is verplicht")
-      }
-      
-      if (is.null(input$form_rechtsgebied) || input$form_rechtsgebied == "") {
-        valid <- FALSE
-        errors <- c(errors, "Rechtsgebied is verplicht")
-      }
+      # Omschrijving, aanvragende_directie, type_dienst en rechtsgebied zijn nu optioneel
+      # Alleen zaak_id, datum_aanmaak en status_zaak zijn verplicht
       
       if (is.null(input$form_status_zaak) || input$form_status_zaak == "") {
         valid <- FALSE
@@ -1177,63 +1468,39 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       tryCatch({
         
         # Prepare form data
+        # Extract directies for separate handling
+        selected_directies <- input$form_aanvragende_directie
+        
         form_data <- data.frame(
           zaak_id = input$form_zaak_id,
           datum_aanmaak = as.character(input$form_datum_aanmaak),
-          omschrijving = input$form_omschrijving,
-          aanvragende_directie = input$form_aanvragende_directie,
-          wjz_mt_lid = input$form_wjz_mt_lid,
-          contactpersoon = input$form_contactpersoon,
-          type_dienst = input$form_type_dienst,
-          rechtsgebied = input$form_rechtsgebied,
+          omschrijving = if(is.null(input$form_omschrijving) || input$form_omschrijving == "") NA else input$form_omschrijving,
+          wjz_mt_lid = if(is.null(input$form_wjz_mt_lid) || input$form_wjz_mt_lid == "") NA else input$form_wjz_mt_lid,
+          contactpersoon = if(is.null(input$form_contactpersoon) || input$form_contactpersoon == "") NA else input$form_contactpersoon,
+          type_dienst = if(is.null(input$form_type_dienst) || input$form_type_dienst == "") NA else input$form_type_dienst,
+          rechtsgebied = if(is.null(input$form_rechtsgebied) || input$form_rechtsgebied == "") NA else input$form_rechtsgebied,
           status_zaak = input$form_status_zaak,
           advocaat = if(is.null(input$form_advocaat) || input$form_advocaat == "" || trimws(input$form_advocaat) == "") NA else trimws(input$form_advocaat),
           adv_kantoor = if(is.null(input$form_adv_kantoor) || input$form_adv_kantoor == "" || trimws(input$form_adv_kantoor) == "") NA else trimws(input$form_adv_kantoor),
           la_budget_wjz = if(is.null(input$form_la_budget_wjz)) 0 else input$form_la_budget_wjz,
           budget_andere_directie = if(is.null(input$form_budget_andere_directie)) 0 else input$form_budget_andere_directie,
           financieel_risico = if(is.null(input$form_financieel_risico)) 0 else input$form_financieel_risico,
+          
+          # Nieuwe administratieve velden
+          kostenplaats = if(is.null(input$form_kostenplaats) || input$form_kostenplaats == "") NA else input$form_kostenplaats,
+          intern_ordernummer = if(is.null(input$form_intern_ordernummer) || input$form_intern_ordernummer == "") NA else input$form_intern_ordernummer,
+          grootboekrekening = if(is.null(input$form_grootboekrekening) || input$form_grootboekrekening == "") NA else input$form_grootboekrekening,
+          budgetcode = if(is.null(input$form_budgetcode) || input$form_budgetcode == "") NA else input$form_budgetcode,
+          proza_link = if(is.null(input$form_proza_link) || input$form_proza_link == "") NA else input$form_proza_link,
+          locatie_formulier = if(is.null(input$form_locatie_formulier) || input$form_locatie_formulier == "") NA else input$form_locatie_formulier,
+          budget_beleid = if(is.null(input$form_budget_beleid) || input$form_budget_beleid == "") NA else input$form_budget_beleid,
+          
           opmerkingen = if(is.null(input$form_opmerkingen) || input$form_opmerkingen == "") NA else input$form_opmerkingen,
           stringsAsFactors = FALSE
         )
         
-        # Save to database using direct SQL to avoid type issues
-        tryCatch({
-          con <- get_db_connection()
-          
-          # Insert new case with proper data types
-          DBI::dbExecute(con, "
-            INSERT INTO zaken (
-              zaak_id, datum_aanmaak, omschrijving, aanvragende_directie,
-              type_dienst, rechtsgebied, status_zaak, advocaat, adv_kantoor,
-              la_budget_wjz, budget_andere_directie, financieel_risico,
-              opmerkingen, aangemaakt_door, laatst_gewijzigd
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ", list(
-            form_data$zaak_id,
-            form_data$datum_aanmaak,
-            form_data$omschrijving,
-            form_data$aanvragende_directie,
-            form_data$type_dienst,
-            form_data$rechtsgebied,
-            form_data$status_zaak,
-            form_data$advocaat,
-            form_data$adv_kantoor,
-            as.numeric(form_data$la_budget_wjz),        # Ensure numeric
-            as.numeric(form_data$budget_andere_directie), # Ensure numeric
-            as.numeric(form_data$financieel_risico),    # Ensure numeric
-            form_data$opmerkingen,
-            current_user(),
-            as.character(Sys.time())  # Consistent string format
-          ))
-          
-          close_db_connection(con)
-          
-        }, error = function(e) {
-          if (exists("con") && DBI::dbIsValid(con)) {
-            close_db_connection(con)
-          }
-          stop(e$message)
-        })
+        # Save to database using the new voeg_zaak_toe function with many-to-many support
+        voeg_zaak_toe(form_data, current_user(), directies = selected_directies)
         
         cli_alert_success("New case created: {form_data$zaak_id}")
         show_notification(paste("Nieuwe zaak toegevoegd:", form_data$zaak_id), type = "message")
