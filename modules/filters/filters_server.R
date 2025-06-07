@@ -69,7 +69,7 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
           choices <- get_dropdown_opties(category)
           dropdown_choices[[category]] <- choices
           
-          # Update the selectInput with force refresh
+          # All dropdowns use selectInput - works reliably with fixed CSS
           updateSelectInput(session, category, choices = c("Alle" = "", choices), selected = "")
         }
         
@@ -282,7 +282,7 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
       # Reset all inputs
       updateTextInput(session, "search_text", value = "")
       
-      # Reset dropdown filters
+      # Reset dropdown filters - all use selectInput now
       dropdown_inputs <- c("type_dienst", "rechtsgebied", "type_procedure", "status_zaak",
                            "hoedanigheid_partij", "type_wederpartij", "reden_inzet", 
                            "aanvragende_directie", "advocaat", "adv_kantoor")

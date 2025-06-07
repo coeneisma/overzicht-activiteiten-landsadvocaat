@@ -77,29 +77,22 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
     # BASIC DATA TABLE
     # ========================================================================
     
-    output$zaken_table <- DT::renderDataTable({
+    # Cached display data with debouncing for performance
+    # Also react to dropdown changes for real-time updates
+    display_data_cached <- reactive({
+      # React to dropdown changes to update display names
+      if (!is.null(global_dropdown_refresh_trigger)) {
+        global_dropdown_refresh_trigger()
+      }
       
       data <- filtered_data()
       
-      # Show message if no data
       if (is.null(data) || nrow(data) == 0) {
-        return(DT::datatable(
-          data.frame("Bericht" = "Geen zaken gevonden. Pas filters aan of voeg nieuwe zaken toe."),
-          options = list(
-            searching = FALSE, 
-            paging = FALSE, 
-            info = FALSE,
-            ordering = FALSE
-          ),
-          rownames = FALSE
-        ))
+        return(data.frame())
       }
       
-      # Get colors for all dropdown categories
-      alle_kleuren <- get_dropdown_kleuren()
-      
-      # Prepare display data with many-to-many directies
-      display_data <- data %>%
+      # Prepare display data with many-to-many directies (OPTIMIZED)
+      data %>%
         rowwise() %>%
         mutate(
           # Get directies for each zaak via many-to-many table (plain text for formatStyle)
@@ -113,11 +106,15 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               if (length(dirs) == 0) {
                 "Niet ingesteld"
               } else {
-                # Convert each directie to display name (plain text)
-                weergave_namen <- character(length(dirs))
-                for (i in seq_along(dirs)) {
-                  weergave_namen[i] <- get_weergave_naam("aanvragende_directie", dirs[i])
-                }
+                # Convert each directie to display name - handle both cases of niet_ingesteld
+                weergave_namen <- sapply(dirs, function(d) {
+                  # Handle both "NIET_INGESTELD" and "niet_ingesteld" cases
+                  if (toupper(d) == "NIET_INGESTELD") {
+                    return("Niet ingesteld")
+                  } else {
+                    return(get_weergave_naam_cached("aanvragende_directie", d))
+                  }
+                })
                 paste(weergave_namen, collapse = ", ")
               }
             }
@@ -137,10 +134,10 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         ) %>%
         mutate(
           Datum = format_date_nl(Datum),
-          # Convert database values to display names (colors will be applied via formatStyle)
-          `Type Dienst` = sapply(`Type Dienst`, function(x) get_weergave_naam("type_dienst", x)),
-          Rechtsgebied = sapply(Rechtsgebied, function(x) get_weergave_naam("rechtsgebied", x)),
-          Status = sapply(Status, function(x) get_weergave_naam("status_zaak", x)),
+          # Convert database values to display names (OPTIMIZED - bulk conversion)
+          `Type Dienst` = bulk_get_weergave_namen("type_dienst", `Type Dienst`),
+          Rechtsgebied = bulk_get_weergave_namen("rechtsgebied", Rechtsgebied),
+          Status = bulk_get_weergave_namen("status_zaak", Status),
           # Truncate long descriptions
           Omschrijving = ifelse(
             nchar(Omschrijving) > 60, 
@@ -148,6 +145,29 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             Omschrijving
           )
         )
+    }) %>% 
+      debounce(300)  # Debounce for performance
+
+    output$zaken_table <- DT::renderDataTable({
+      
+      display_data <- display_data_cached()
+      
+      # Show message if no data
+      if (is.null(display_data) || nrow(display_data) == 0) {
+        return(DT::datatable(
+          data.frame("Bericht" = "Geen zaken gevonden. Pas filters aan of voeg nieuwe zaken toe."),
+          options = list(
+            searching = FALSE, 
+            paging = FALSE, 
+            info = FALSE,
+            ordering = FALSE
+          ),
+          rownames = FALSE
+        ))
+      }
+      
+      # Get colors for all dropdown categories
+      alle_kleuren <- get_dropdown_kleuren()
       
       # Create DataTable with background colors
       dt <- DT::datatable(
@@ -194,7 +214,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         
         for (waarde in names(status_kleuren)) {
           if (!is.na(status_kleuren[[waarde]]) && status_kleuren[[waarde]] != "") {
-            weergave <- get_weergave_naam("status_zaak", waarde)
+            weergave <- get_weergave_naam_cached("status_zaak", waarde)
             weergave_values <- c(weergave_values, weergave)
             color_values <- c(color_values, status_kleuren[[waarde]])
             text_colors <- c(text_colors, ifelse(waarde == "Lopend", "black", "white"))
@@ -222,7 +242,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         
         for (waarde in names(type_kleuren)) {
           if (!is.na(type_kleuren[[waarde]]) && type_kleuren[[waarde]] != "") {
-            weergave <- get_weergave_naam("type_dienst", waarde)
+            weergave <- get_weergave_naam_cached("type_dienst", waarde)
             weergave_values <- c(weergave_values, weergave)
             color_values <- c(color_values, type_kleuren[[waarde]])
             text_colors <- c(text_colors, "white")
@@ -249,7 +269,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         
         for (waarde in names(rechts_kleuren)) {
           if (!is.na(rechts_kleuren[[waarde]]) && rechts_kleuren[[waarde]] != "") {
-            weergave <- get_weergave_naam("rechtsgebied", waarde)
+            weergave <- get_weergave_naam_cached("rechtsgebied", waarde)
             weergave_values <- c(weergave_values, weergave)
             color_values <- c(color_values, rechts_kleuren[[waarde]])
             text_colors <- c(text_colors, "white")
@@ -278,7 +298,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         
         for (waarde in names(directie_kleuren)) {
           if (!is.na(directie_kleuren[[waarde]]) && directie_kleuren[[waarde]] != "") {
-            weergave <- get_weergave_naam("aanvragende_directie", waarde)
+            weergave <- get_weergave_naam_cached("aanvragende_directie", waarde)
             weergave_values <- c(weergave_values, weergave)
             color_values <- c(color_values, directie_kleuren[[waarde]])
             text_colors <- c(text_colors, "white")
@@ -339,6 +359,15 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
     
     # Load dropdown choices for forms
     dropdown_choices <- reactiveValues()
+    
+    # Clear dropdown cache when settings change for real-time updates
+    observeEvent(global_dropdown_refresh_trigger(), {
+      if (!is.null(global_dropdown_refresh_trigger)) {
+        # Clear the dropdown cache to force fresh display names
+        clear_dropdown_cache()
+        cli_alert_info("Dropdown cache cleared due to settings change - zaakbeheer will show updated display names")
+      }
+    }, ignoreInit = TRUE)
     
     observe({
       # React to global dropdown refresh trigger

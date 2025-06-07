@@ -67,9 +67,9 @@ server <- function(input, output, session) {
     # Trigger refresh when data changes
     data_refresh_trigger()
     
-    # Load data from database with directies
+    # Load data from database with directies (OPTIMIZED)
     tryCatch({
-      get_zaken_met_directies()
+      get_zaken_met_directies_optimized()
     }, error = function(e) {
       cli_alert_danger("Error loading data: {e$message}")
       show_notification("Fout bij laden data", type = "error")
@@ -181,7 +181,9 @@ server <- function(input, output, session) {
       filtered_data,
       raw_data,
       data_refresh_trigger,
-      login_result$user
+      login_result$user,
+      reactive(input$main_navbar),
+      dropdown_refresh_trigger
     )
     cli_alert_success("Analyse module initialized successfully")
     result

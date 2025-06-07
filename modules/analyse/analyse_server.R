@@ -10,8 +10,10 @@
 #' @param raw_data Reactive containing all case data
 #' @param data_refresh_trigger Reactive value to trigger data refresh
 #' @param current_user Reactive containing current username
+#' @param main_navbar_input Reactive value with current active navbar tab for lazy loading
+#' @param global_dropdown_refresh_trigger Reactive trigger for dropdown changes
 #' @return List with reactive values and functions
-analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, current_user) {
+analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, current_user, main_navbar_input = reactive(""), global_dropdown_refresh_trigger = NULL) {
   
   moduleServer(id, function(input, output, session) {
     
@@ -19,8 +21,26 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
     # REACTIVE VALUES - Use filtered data from filter module
     # ========================================================================
     
+    # Clear dropdown cache when settings change for real-time updates  
+    observeEvent(global_dropdown_refresh_trigger(), {
+      if (!is.null(global_dropdown_refresh_trigger)) {
+        # Clear the dropdown cache to force fresh display names in analysis
+        clear_dropdown_cache()
+        cli_alert_info("Dropdown cache cleared due to settings change - analyse module will show updated display names")
+      }
+    }, ignoreInit = TRUE)
+    
     # Data is already filtered by the filter module, just ensure deleted cases are excluded
+    # Add debouncing + lazy loading for better performance + react to dropdown changes
     analysis_data <- reactive({
+      # Only load data when analyse tab is active (lazy loading)
+      req(main_navbar_input() == "tab_analyse")
+      
+      # React to dropdown changes to refresh display names
+      if (!is.null(global_dropdown_refresh_trigger)) {
+        global_dropdown_refresh_trigger()
+      }
+      
       data <- filtered_data()
       
       if (is.null(data) || nrow(data) == 0) return(data)
@@ -28,27 +48,34 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
       # Exclude deleted cases (if not already done by filter module)
       data %>%
         filter(is.na(status_zaak) | status_zaak != "Verwijderd")
-    })
+    }) %>% debounce(300)
     
     # ========================================================================
     # LOOPTIJD BEREKENINGEN
     # ========================================================================
     
-    # Calculate case durations
+    # Calculate case durations with optimized bulk conversions
     looptijd_data <- reactive({
       data <- analysis_data()
       
       if (is.null(data) || nrow(data) == 0) return(NULL)
+      
+      # Bulk convert database values to display names for better performance
+      type_dienst_names <- bulk_get_weergave_namen("type_dienst", data$type_dienst)
+      rechtsgebied_names <- bulk_get_weergave_namen("rechtsgebied", data$rechtsgebied)
+      status_zaak_names <- bulk_get_weergave_namen("status_zaak", data$status_zaak)
+      reden_inzet_names <- bulk_get_weergave_namen("reden_inzet", data$reden_inzet)
       
       data %>%
         mutate(
           # Calculate duration in days
           looptijd_dagen = as.numeric(Sys.Date() - as.Date(datum_aanmaak)),
           
-          # Convert database values to display names for grouping
-          type_dienst_display = sapply(type_dienst, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_dienst", x)),
-          rechtsgebied_display = sapply(rechtsgebied, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("rechtsgebied", x)),
-          status_zaak_display = sapply(status_zaak, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("status_zaak", x)),
+          # Use pre-computed display names (much faster than individual sapply calls)
+          type_dienst_display = ifelse(is.na(type_dienst), "Onbekend", type_dienst_names),
+          rechtsgebied_display = ifelse(is.na(rechtsgebied), "Onbekend", rechtsgebied_names),
+          status_zaak_display = ifelse(is.na(status_zaak), "Onbekend", status_zaak_names),
+          reden_inzet_display = ifelse(is.na(reden_inzet), "Onbekend", reden_inzet_names),
           aanvragende_directie_display = ifelse(is.na(directies) | directies == "" | directies == "Niet ingesteld", "Onbekend", directies),
           adv_kantoor_display = ifelse(is.na(adv_kantoor) | adv_kantoor == "", "Onbekend", adv_kantoor)
         ) %>%
@@ -184,16 +211,35 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
         return(ggplotly(p))
       }
       
-      # Convert database values to display names
+      # Convert database values to display names using bulk operations for better performance
       data_with_display <- data %>%
         mutate(
           categorie_display = case_when(
-            split_var == "type_dienst" ~ sapply(type_dienst, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_dienst", x)),
-            split_var == "rechtsgebied" ~ sapply(rechtsgebied, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("rechtsgebied", x)),
-            split_var == "status_zaak" ~ sapply(status_zaak, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("status_zaak", x)),
+            split_var == "type_dienst" ~ {
+              names <- bulk_get_weergave_namen("type_dienst", type_dienst)
+              ifelse(is.na(type_dienst), "Onbekend", names)
+            },
+            split_var == "rechtsgebied" ~ {
+              names <- bulk_get_weergave_namen("rechtsgebied", rechtsgebied)
+              ifelse(is.na(rechtsgebied), "Onbekend", names)
+            },
+            split_var == "status_zaak" ~ {
+              names <- bulk_get_weergave_namen("status_zaak", status_zaak)
+              ifelse(is.na(status_zaak), "Onbekend", names)
+            },
             split_var == "aanvragende_directie" ~ ifelse(is.na(directies) | directies == "" | directies == "Niet ingesteld", "Onbekend", directies),
-            split_var == "type_wederpartij" ~ sapply(type_wederpartij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_wederpartij", x)),
-            split_var == "hoedanigheid_partij" ~ sapply(hoedanigheid_partij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("hoedanigheid_partij", x)),
+            split_var == "type_wederpartij" ~ {
+              names <- bulk_get_weergave_namen("type_wederpartij", type_wederpartij)
+              ifelse(is.na(type_wederpartij), "Onbekend", names)
+            },
+            split_var == "hoedanigheid_partij" ~ {
+              names <- bulk_get_weergave_namen("hoedanigheid_partij", hoedanigheid_partij)
+              ifelse(is.na(hoedanigheid_partij), "Onbekend", names)
+            },
+            split_var == "reden_inzet" ~ {
+              names <- bulk_get_weergave_namen("reden_inzet", reden_inzet)
+              ifelse(is.na(reden_inzet), "Onbekend", names)
+            },
             TRUE ~ as.character(!!sym(split_var))
           )
         )
@@ -291,16 +337,35 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
         ))
       }
       
-      # Convert values to display names
+      # Convert values to display names using bulk operations
       data_with_display <- data %>%
         mutate(
           categorie_display = case_when(
-            split_var == "type_dienst" ~ sapply(type_dienst, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_dienst", x)),
-            split_var == "rechtsgebied" ~ sapply(rechtsgebied, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("rechtsgebied", x)),
-            split_var == "status_zaak" ~ sapply(status_zaak, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("status_zaak", x)),
+            split_var == "type_dienst" ~ {
+              names <- bulk_get_weergave_namen("type_dienst", type_dienst)
+              ifelse(is.na(type_dienst), "Onbekend", names)
+            },
+            split_var == "rechtsgebied" ~ {
+              names <- bulk_get_weergave_namen("rechtsgebied", rechtsgebied)
+              ifelse(is.na(rechtsgebied), "Onbekend", names)
+            },
+            split_var == "status_zaak" ~ {
+              names <- bulk_get_weergave_namen("status_zaak", status_zaak)
+              ifelse(is.na(status_zaak), "Onbekend", names)
+            },
             split_var == "aanvragende_directie" ~ ifelse(is.na(directies) | directies == "" | directies == "Niet ingesteld", "Onbekend", directies),
-            split_var == "type_wederpartij" ~ sapply(type_wederpartij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_wederpartij", x)),
-            split_var == "hoedanigheid_partij" ~ sapply(hoedanigheid_partij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("hoedanigheid_partij", x)),
+            split_var == "type_wederpartij" ~ {
+              names <- bulk_get_weergave_namen("type_wederpartij", type_wederpartij)
+              ifelse(is.na(type_wederpartij), "Onbekend", names)
+            },
+            split_var == "hoedanigheid_partij" ~ {
+              names <- bulk_get_weergave_namen("hoedanigheid_partij", hoedanigheid_partij)
+              ifelse(is.na(hoedanigheid_partij), "Onbekend", names)
+            },
+            split_var == "reden_inzet" ~ {
+              names <- bulk_get_weergave_namen("reden_inzet", reden_inzet)
+              ifelse(is.na(reden_inzet), "Onbekend", names)
+            },
             TRUE ~ as.character(!!sym(split_var))
           )
         )
@@ -424,16 +489,35 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
           # Get current split variable for verdeling
           verdeling_split_var <- if(is.null(input$verdeling_split_var)) "rechtsgebied" else input$verdeling_split_var
           
-          # Convert database values to display names
+          # Convert database values to display names using bulk operations
           data_with_display <- data %>%
             mutate(
               categorie_display = case_when(
-                verdeling_split_var == "type_dienst" ~ sapply(type_dienst, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_dienst", x)),
-                verdeling_split_var == "rechtsgebied" ~ sapply(rechtsgebied, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("rechtsgebied", x)),
-                verdeling_split_var == "status_zaak" ~ sapply(status_zaak, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("status_zaak", x)),
+                verdeling_split_var == "type_dienst" ~ {
+                  names <- bulk_get_weergave_namen("type_dienst", type_dienst)
+                  ifelse(is.na(type_dienst), "Onbekend", names)
+                },
+                verdeling_split_var == "rechtsgebied" ~ {
+                  names <- bulk_get_weergave_namen("rechtsgebied", rechtsgebied)
+                  ifelse(is.na(rechtsgebied), "Onbekend", names)
+                },
+                verdeling_split_var == "status_zaak" ~ {
+                  names <- bulk_get_weergave_namen("status_zaak", status_zaak)
+                  ifelse(is.na(status_zaak), "Onbekend", names)
+                },
                 verdeling_split_var == "aanvragende_directie" ~ ifelse(is.na(directies) | directies == "" | directies == "Niet ingesteld", "Onbekend", directies),
-                verdeling_split_var == "type_wederpartij" ~ sapply(type_wederpartij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("type_wederpartij", x)),
-                verdeling_split_var == "hoedanigheid_partij" ~ sapply(hoedanigheid_partij, function(x) if(is.na(x)) "Onbekend" else get_weergave_naam("hoedanigheid_partij", x)),
+                verdeling_split_var == "type_wederpartij" ~ {
+                  names <- bulk_get_weergave_namen("type_wederpartij", type_wederpartij)
+                  ifelse(is.na(type_wederpartij), "Onbekend", names)
+                },
+                verdeling_split_var == "hoedanigheid_partij" ~ {
+                  names <- bulk_get_weergave_namen("hoedanigheid_partij", hoedanigheid_partij)
+                  ifelse(is.na(hoedanigheid_partij), "Onbekend", names)
+                },
+                verdeling_split_var == "reden_inzet" ~ {
+                  names <- bulk_get_weergave_namen("reden_inzet", reden_inzet)
+                  ifelse(is.na(reden_inzet), "Onbekend", names)
+                },
                 TRUE ~ as.character(!!sym(verdeling_split_var))
               )
             )
@@ -450,7 +534,12 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
           # TAB 4: RUWE GEFILTERDE DATA
           # =====================================================================
           
-          # Prepare clean export data
+          # Prepare clean export data with bulk conversions
+          # Pre-compute all display names for better performance
+          type_dienst_export <- bulk_get_weergave_namen("type_dienst", data$type_dienst)
+          rechtsgebied_export <- bulk_get_weergave_namen("rechtsgebied", data$rechtsgebied)
+          status_export <- bulk_get_weergave_namen("status_zaak", data$status_zaak)
+          
           ruwe_data <- data %>%
             select(
               "Zaak ID" = zaak_id,
@@ -471,10 +560,10 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
               # Format dates
               `Datum Aanmaak` = format_date_nl(`Datum Aanmaak`),
               
-              # Convert database values to display names
-              `Type Dienst` = sapply(`Type Dienst`, function(x) if(is.na(x)) "" else get_weergave_naam("type_dienst", x)),
-              Rechtsgebied = sapply(Rechtsgebied, function(x) if(is.na(x)) "" else get_weergave_naam("rechtsgebied", x)),
-              Status = sapply(Status, function(x) if(is.na(x)) "" else get_weergave_naam("status_zaak", x)),
+              # Use pre-computed display names (much faster than individual sapply calls)
+              `Type Dienst` = ifelse(is.na(`Type Dienst`), "", type_dienst_export),
+              Rechtsgebied = ifelse(is.na(Rechtsgebied), "", rechtsgebied_export),
+              Status = ifelse(is.na(Status), "", status_export),
               `Aanvragende Directie` = ifelse(is.na(`Aanvragende Directie`) | `Aanvragende Directie` == "" | `Aanvragende Directie` == "Niet ingesteld", "", `Aanvragende Directie`),
               
               # Clean up fields
