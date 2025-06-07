@@ -226,7 +226,8 @@ get_dropdown_opties <- function(categorie, actief_alleen = TRUE, exclude_fallbac
   }
   
   result <- query %>%
-    select(waarde, weergave_naam) %>%
+    select(waarde, weergave_naam, volgorde) %>%
+    arrange(volgorde) %>%
     collect()
   
   # Gebruik weergave_naam als die bestaat, anders waarde
@@ -235,13 +236,136 @@ get_dropdown_opties <- function(categorie, actief_alleen = TRUE, exclude_fallbac
   opties <- result$waarde
   names(opties) <- labels
   
-  # Sorteer alfabetisch op labels (weergave namen)
+  # Sorteer alfabetisch op labels (weergave namen) zoals gewenst
   opties <- opties[order(names(opties))]
   
   return(opties)
 }
 
-#' Converteer database waarde naar weergave naam
+# =============================================================================
+# DROPDOWN CACHE SYSTEM (Performance Optimalisatie)
+# =============================================================================
+
+# Global cache voor dropdown weergave namen
+.dropdown_cache <- new.env(parent = emptyenv())
+
+#' Clear dropdown cache (call when dropdowns are updated)
+clear_dropdown_cache <- function() {
+  rm(list = ls(.dropdown_cache), envir = .dropdown_cache)
+  message("Dropdown cache cleared")
+}
+
+#' Get cached dropdown mapping voor een categorie
+get_dropdown_cache <- function(categorie) {
+  cache_key <- paste0("mapping_", categorie)
+  if (exists(cache_key, envir = .dropdown_cache)) {
+    return(get(cache_key, envir = .dropdown_cache))
+  }
+  return(NULL)
+}
+
+#' Set cached dropdown mapping voor een categorie
+set_dropdown_cache <- function(categorie, mapping) {
+  cache_key <- paste0("mapping_", categorie)
+  assign(cache_key, mapping, envir = .dropdown_cache)
+}
+
+#' Bulk load dropdown mappings voor een categorie
+load_dropdown_mapping <- function(categorie) {
+  # Check cache first
+  cached <- get_dropdown_cache(categorie)
+  if (!is.null(cached)) {
+    return(cached)
+  }
+  
+  # Load from database
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  mapping_data <- tbl_dropdown_opties(con) %>%
+    filter(categorie == !!categorie, actief == 1) %>%
+    select(waarde, weergave_naam) %>%
+    collect()
+  
+  # Create named vector mapping
+  mapping <- setNames(
+    ifelse(is.na(mapping_data$weergave_naam) | mapping_data$weergave_naam == "", 
+           mapping_data$waarde, 
+           mapping_data$weergave_naam),
+    mapping_data$waarde
+  )
+  
+  # Add special cases
+  mapping["niet_ingesteld"] <- "Niet ingesteld"
+  mapping[""] <- ""
+  mapping[is.na(names(mapping))] <- ""
+  
+  # Cache it
+  set_dropdown_cache(categorie, mapping)
+  
+  return(mapping)
+}
+
+#' Converteer database waarde naar weergave naam (CACHED)
+get_weergave_naam_cached <- function(categorie, waarde) {
+  if (is.na(waarde) || is.null(waarde) || waarde == "") {
+    return(waarde)
+  }
+  
+  # Get mapping from cache or load
+  mapping <- load_dropdown_mapping(categorie)
+  
+  # Look up value
+  waarde_str <- as.character(waarde)
+  if (waarde_str %in% names(mapping)) {
+    result <- mapping[[waarde_str]]
+    if (!is.null(result) && !is.na(result)) {
+      return(result)
+    }
+  }
+  
+  # Fallback naar originele waarde
+  return(waarde)
+}
+
+#' Bulk convert multiple values to display names (OPTIMIZED)
+bulk_get_weergave_namen <- function(categorie, waarden) {
+  if (length(waarden) == 0) return(character(0))
+  
+  # Remove NA values but keep track of positions
+  na_positions <- is.na(waarden) | waarden == ""
+  
+  if (all(na_positions)) {
+    return(waarden)
+  }
+  
+  # Get mapping
+  mapping <- load_dropdown_mapping(categorie)
+  
+  # Apply mapping
+  result <- character(length(waarden))
+  result[na_positions] <- waarden[na_positions]
+  
+  valid_waarden <- waarden[!na_positions]
+  valid_waarden_str <- as.character(valid_waarden)
+  
+  # Get mapped values with safe lookup
+  mapped_values <- character(length(valid_waarden))
+  for (i in seq_along(valid_waarden_str)) {
+    if (valid_waarden_str[i] %in% names(mapping)) {
+      mapped_values[i] <- mapping[[valid_waarden_str[i]]]
+    } else {
+      mapped_values[i] <- valid_waarden[i]
+    }
+  }
+  
+  result[!na_positions] <- mapped_values
+  
+  return(result)
+}
+
+#' Converteer database waarde naar weergave naam (LEGACY - Non-cached)
+#' @deprecated Use get_weergave_naam_cached() instead for better performance
 get_weergave_naam <- function(categorie, waarde) {
   if (is.na(waarde) || is.null(waarde) || waarde == "") {
     return(waarde)
@@ -284,6 +408,9 @@ add_dropdown_optie <- function(categorie, waarde, weergave_naam = NULL,
   )
   
   DBI::dbAppendTable(con, "dropdown_opties", nieuwe_optie)
+  
+  # Clear cache voor deze categorie
+  clear_dropdown_cache()
 }
 
 #' Verwijder dropdown optie met vervanging voor zaken in gebruik
@@ -347,6 +474,9 @@ verwijder_dropdown_optie <- function(categorie, waarde, gebruiker = "system") {
     
     # Commit transactie
     DBI::dbCommit(con)
+    
+    # Clear cache after successful deletion
+    clear_dropdown_cache()
     
     return(list(success = TRUE, zaken_updated = gebruik_count))
     
@@ -583,7 +713,75 @@ get_zaak_directies <- function(zaak_id) {
   return(result$directie)
 }
 
-#' Haal alle zaken met hun directies op voor display
+#' Haal alle zaken met hun directies op voor display (OPTIMIZED - Single Query)
+get_zaken_met_directies_optimized <- function() {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  # Single JOIN query instead of N+1 queries
+  result <- DBI::dbGetQuery(con, "
+    SELECT z.*,
+           COALESCE(
+             GROUP_CONCAT(
+               CASE 
+                 WHEN do.weergave_naam IS NOT NULL AND do.weergave_naam != '' 
+                 THEN do.weergave_naam 
+                 ELSE zd.directie 
+               END, 
+               ', '
+             ), 
+             'Niet ingesteld'
+           ) as directies
+    FROM zaken z
+    LEFT JOIN zaak_directies zd ON z.zaak_id = zd.zaak_id
+    LEFT JOIN dropdown_opties do ON zd.directie = do.waarde 
+                                 AND do.categorie = 'aanvragende_directie'
+                                 AND do.actief = 1
+    GROUP BY z.zaak_id, z.datum_aanmaak, z.omschrijving, z.zaakaanduiding,
+             z.type_dienst, z.type_procedure, z.rechtsgebied, z.hoedanigheid_partij,
+             z.type_wederpartij, z.reden_inzet, z.civiel_bestuursrecht, z.aansprakelijkheid,
+             z.aanvragende_directie, z.proza_link, z.wjz_mt_lid, z.la_budget_wjz,
+             z.budget_andere_directie, z.kostenplaats, z.intern_ordernummer,
+             z.grootboekrekening, z.budgetcode, z.financieel_risico, z.advocaat,
+             z.adv_kantoor, z.adv_kantoor_contactpersoon, z.budget_beleid,
+             z.advies_vertegenw_bestuursR, z.status_zaak, z.locatie_formulier,
+             z.opmerkingen, z.aangemaakt_door, z.laatst_gewijzigd, z.gewijzigd_door
+    ORDER BY z.datum_aanmaak DESC
+  ")
+  
+  # Convert dates properly
+  if (nrow(result) > 0) {
+    result$datum_aanmaak <- as.Date(result$datum_aanmaak)
+    
+    # Robuuste conversie van laatst_gewijzigd
+    result$laatst_gewijzigd <- tryCatch({
+      as.POSIXct(result$laatst_gewijzigd)
+    }, error = function(e) {
+      sapply(result$laatst_gewijzigd, function(x) {
+        if (is.na(x) || x == "") return(as.POSIXct(NA))
+        
+        formats <- c(
+          "%Y-%m-%d %H:%M:%S",
+          "%Y-%m-%d %H:%M:%S.%f",
+          "%Y-%m-%d %H:%M",
+          "%Y-%m-%d"
+        )
+        
+        for (fmt in formats) {
+          parsed <- tryCatch(as.POSIXct(x, format = fmt), error = function(e) NULL)
+          if (!is.null(parsed) && !is.na(parsed)) return(parsed)
+        }
+        
+        return(Sys.time())
+      })
+    })
+  }
+  
+  return(result)
+}
+
+#' Haal alle zaken met hun directies op voor display (LEGACY - N+1 queries)
+#' @deprecated Use get_zaken_met_directies_optimized() instead
 get_zaken_met_directies <- function() {
   con <- get_db_connection()
   on.exit(close_db_connection(con))

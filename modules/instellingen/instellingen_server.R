@@ -439,6 +439,14 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         return()
       }
       
+      # Get weergave naam for display in modal
+      weergave_naam <- get_weergave_naam_cached(category, waarde)
+      display_name <- if (!is.null(weergave_naam) && !is.na(weergave_naam) && weergave_naam != "") {
+        weergave_naam
+      } else {
+        waarde
+      }
+      
       showModal(modalDialog(
         title = "Dropdown Waarde Verwijderen",
         size = "m",
@@ -448,7 +456,7 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
           div(
             class = "alert alert-warning",
             icon("exclamation-triangle"), " ",
-            paste("Weet je zeker dat je de waarde", strong(waarde), "wilt verwijderen?")
+            HTML(paste("Weet je zeker dat je de waarde <strong>", display_name, "</strong> wilt verwijderen?"))
           ),
           p("Als deze waarde in gebruik is bij bestaande zaken, wordt deze vervangen door 'Niet ingesteld'.")
         ),
@@ -909,7 +917,7 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
           div(
             class = "alert alert-warning",
             icon("exclamation-triangle"), " ",
-            paste("Weet je zeker dat je gebruiker", strong(username), "wilt verwijderen?")
+            HTML(paste("Weet je zeker dat je gebruiker <strong>", username, "</strong> wilt verwijderen?"))
           ),
           p("De gebruiker wordt gedeactiveerd en kan niet meer inloggen.")
         ),
@@ -1119,11 +1127,28 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
               value = ifelse(is.na(value_data$weergave_naam), "", value_data$weergave_naam)
             ),
             
-            checkboxInput(
-              session$ns("edit_dropdown_active"),
-              "Actief",
-              value = (value_data$actief == 1)
-            ),
+            # Check if this is a protected "Niet ingesteld" value
+            if (value_data$waarde == "niet_ingesteld" || 
+                (!is.na(value_data$weergave_naam) && value_data$weergave_naam == "Niet ingesteld") ||
+                value_data$waarde == "Niet ingesteld") {
+              # Show disabled checkbox for protected values
+              div(
+                checkboxInput(
+                  session$ns("edit_dropdown_active"),
+                  "Actief (automatisch)",
+                  value = TRUE
+                ),
+                tags$script(paste0("$('#", session$ns("edit_dropdown_active"), "').prop('disabled', true);")),
+                div(class = "small text-muted", "Systeem waarden kunnen niet worden gedeactiveerd")
+              )
+            } else {
+              # Normal checkbox for non-protected values
+              checkboxInput(
+                session$ns("edit_dropdown_active"),
+                "Actief",
+                value = (value_data$actief == 1)
+              )
+            },
             
             # Kleur picker met "geen kleur" optie
             conditionalPanel(
@@ -1304,9 +1329,20 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
           as.character(input$edit_dropdown_kleur)
         }
         
+        # Check if this is a protected "Niet ingesteld" value - always keep active
+        is_protected <- original_waarde == "niet_ingesteld" || 
+                       original_waarde == "Niet ingesteld" ||
+                       input$edit_dropdown_weergave == "Niet ingesteld"
+        
+        actief_value <- if (is_protected) {
+          1  # Always active for protected values
+        } else {
+          as.integer(if (input$edit_dropdown_active) 1 else 0)
+        }
+        
         params <- list(
           weergave_naam = as.character(input$edit_dropdown_weergave),
-          actief = as.integer(if (input$edit_dropdown_active) 1 else 0),
+          actief = actief_value,
           kleur = kleur_value,
           category = as.character(category),
           original_waarde = as.character(original_waarde)

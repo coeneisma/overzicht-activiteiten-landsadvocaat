@@ -106,13 +106,8 @@ app_theme <- bs_theme(
 
 # Theme customizations
 app_theme <- bs_add_rules(app_theme, 
-                          # Custom CSS rules
+                          # STEP 1: Testing navbar styling only
                           "
-  .navbar-brand {
-    font-weight: 600;
-    font-size: 1.3em;
-  }
-  
   /* Navbar styling to match login screen */
   .navbar, .navbar-expand-lg, .navbar-light {
     background-color: #154273 !important;
@@ -133,36 +128,31 @@ app_theme <- bs_add_rules(app_theme,
     color: white !important;
   }
   
+  /* Basic UI improvements - should be safe */
   .sidebar {
     background-color: var(--bs-gray-50);
     border-right: 1px solid var(--bs-border-color);
   }
-  
+
   .card {
     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     border: 1px solid rgba(0, 0, 0, 0.125);
-    overflow: visible !important;
   }
-  
+
   .btn-primary {
     background-color: var(--bs-primary);
     border-color: var(--bs-primary);
   }
-  
+
   .table th {
     background-color: var(--bs-gray-100);
     border-color: var(--bs-border-color);
     font-weight: 600;
   }
-  
+
   .alert {
     border: none;
     border-radius: 0.375rem;
-  }
-  
-  /* Loading spinner styling */
-  .shiny-spinner-output-container {
-    text-align: center;
   }
   
   /* Modal improvements */
@@ -171,9 +161,14 @@ app_theme <- bs_add_rules(app_theme,
     color: white;
     border-bottom: none;
   }
-  
+
   .modal-header .btn-close {
     filter: brightness(0) invert(1);
+  }
+
+  /* Loading spinner styling */
+  .shiny-spinner-output-container {
+    text-align: center;
   }
   
   /* Fix scroll issues */
@@ -183,61 +178,26 @@ app_theme <- bs_add_rules(app_theme,
     height: auto !important;
     min-height: 100vh;
   }
-  
+
   .container-fluid {
     overflow: visible !important;
   }
-  
+
   /* Ensure main content area is scrollable */
   .tab-content {
     overflow-y: auto !important;
     max-height: none !important;
   }
-  
+
   /* Fix potential modal scroll blocking */
   .modal-open {
     overflow: hidden !important;
   }
-  
+
   .modal-open .navbar,
   .modal-open .sidebar {
     filter: none !important;
   }
-  
-  /* Fix dropdown overflow in cards - allow dropdowns to extend outside card bounds */
-  
-  .card-body {
-    overflow: visible !important;
-  }
-  
-  /* Specifically for selectize (shiny dropdown) containers */
-  .selectize-control,
-  .selectize-dropdown {
-    z-index: 1050 !important;
-  }
-  
-  .selectize-dropdown {
-    position: absolute !important;
-    max-height: 200px !important;
-    overflow-y: auto !important;
-  }
-  
-  /* Ensure row containers don't clip content */
-  .row {
-    overflow: visible !important;
-  }
-  
-  /* Fix for analyse module filter cards specifically */
-  .analyse-filters .card,
-  .analyse-filters .card-body,
-  .analyse-filters .row,
-  .analyse-filters .col-md-3 {
-    overflow: visible !important;
-    position: relative !important;
-  }
-  
-  /* Admin-only content styling is now handled via conditionalPanel */
-  
   ")
 
 # =============================================================================
