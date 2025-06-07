@@ -107,36 +107,8 @@ ui <- div(
         div(
           class = "container-fluid p-4",
           
-          # Show settings for admin users
-          conditionalPanel(
-            condition = "output.user_is_admin == true",
-            instellingen_ui("instellingen")
-          ),
-          
-          # Show access denied message for non-admin users
-          conditionalPanel(
-            condition = "output.user_is_admin != true",
-            div(
-              class = "row mt-5",
-              div(
-                class = "col-md-6 offset-md-3",
-                div(
-                  class = "card",
-                  div(
-                    class = "card-body text-center",
-                    icon("lock", class = "fa-3x text-muted mb-3"),
-                    h4("Geen toegang"),
-                    p(class = "text-muted", 
-                      "Alleen administrators hebben toegang tot de instellingen."
-                    ),
-                    p(class = "text-muted",
-                      "Neem contact op met uw systeembeheerder als u toegang nodig heeft."
-                    )
-                  )
-                )
-              )
-            )
-          )
+          # Show settings - alle gebruikers hebben toegang tot instellingen
+          instellingen_ui("instellingen")
         )
       ),
       

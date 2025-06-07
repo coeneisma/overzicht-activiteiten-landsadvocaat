@@ -15,6 +15,70 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
   moduleServer(id, function(input, output, session) {
     
     # ========================================================================
+    # DYNAMIC UI RENDERING BASED ON USER ROLE
+    # ========================================================================
+    
+    output$settings_ui <- renderUI({
+      # Check if user is logged in
+      if (is.null(current_user()) || current_user() == "") {
+        return(div(
+          class = "text-center py-5",
+          icon("lock", class = "fa-3x text-muted mb-3"),
+          h4("Niet ingelogd"),
+          p("Log in om de instellingen te bekijken")
+        ))
+      }
+      
+      if (is_admin()) {
+        # Admin users see all tabs
+        tabsetPanel(
+          id = session$ns("settings_tabs"),
+          type = "tabs",
+          
+          # Kolom Zichtbaarheid tab
+          tabPanel(
+            title = div(icon("eye"), " Kolom Zichtbaarheid"),
+            value = "tab_kolom_zichtbaarheid",
+            kolom_zichtbaarheid_tab_ui(session$ns)
+          ),
+          
+          # Gebruikersbeheer tab
+          tabPanel(
+            title = div(icon("users"), " Gebruikersbeheer"),
+            value = "tab_users",
+            gebruikersbeheer_tab_ui(session$ns)
+          ),
+          
+          # Deadline Kleuren tab
+          tabPanel(
+            title = div(icon("calendar-times"), " Deadline Kleuren"),
+            value = "tab_deadline_kleuren",
+            deadline_kleuren_tab_ui(session$ns)
+          ),
+          
+          # Dropdown Beheer tab
+          tabPanel(
+            title = div(icon("list"), " Dropdown Beheer"),
+            value = "tab_dropdowns",
+            dropdown_beheer_tab_ui(session$ns)
+          )
+        )
+      } else {
+        # Regular users only see Kolom Zichtbaarheid
+        tabsetPanel(
+          id = session$ns("settings_tabs"),
+          type = "tabs",
+          
+          tabPanel(
+            title = div(icon("eye"), " Kolom Zichtbaarheid"),
+            value = "tab_kolom_zichtbaarheid",
+            kolom_zichtbaarheid_tab_ui(session$ns)
+          )
+        )
+      }
+    })
+    
+    # ========================================================================
     # REACTIVE VALUES
     # ========================================================================
     
@@ -1857,6 +1921,163 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
     })
     
     # ========================================================================
+    # KOLOM ZICHTBAARHEID MANAGEMENT
+    # ========================================================================
+    
+    # Kolom instellingen refresh trigger
+    kolom_instellingen_refresh <- reactiveVal(0)
+    
+    # Render dynamische kolom checkboxes
+    output$kolommen_container <- renderUI({
+      kolom_instellingen_refresh()  # Trigger refresh
+      
+      req(current_user())
+      
+      # Haal gebruiker ID op
+      tryCatch({
+        con <- get_db_connection()
+        on.exit(close_db_connection(con))
+        
+        gebruiker <- DBI::dbGetQuery(con, "
+          SELECT gebruiker_id FROM gebruikers WHERE gebruikersnaam = ?
+        ", params = list(current_user()))
+        
+        if (nrow(gebruiker) == 0) return(NULL)
+        
+        gebruiker_id <- gebruiker$gebruiker_id[1]
+        
+        # Haal beschikbare kolommen en huidige instellingen op
+        beschikbare_kolommen <- get_beschikbare_kolommen()
+        huidige_instellingen <- get_gebruiker_kolom_instellingen(gebruiker_id)
+        
+        # Default zichtbare kolommen
+        default_zichtbaar <- c(
+          "status_zaak", "type_dienst", "rechtsgebied", "omschrijving", 
+          "directies", "datum_aanmaak", "laatst_gewijzigd"
+        )
+        
+        # Genereer checkboxes voor alle beschikbare kolommen
+        checkbox_list <- lapply(names(beschikbare_kolommen), function(kolom_naam) {
+          # Bepaal of kolom zichtbaar is
+          if (kolom_naam %in% names(huidige_instellingen)) {
+            checked <- huidige_instellingen[[kolom_naam]]
+          } else {
+            checked <- kolom_naam %in% default_zichtbaar
+          }
+          
+          div(
+            class = "form-check mb-2",
+            checkboxInput(
+              session$ns(paste0("kolom_", kolom_naam)),
+              beschikbare_kolommen[[kolom_naam]],
+              value = checked
+            )
+          )
+        })
+        
+        return(tagList(checkbox_list))
+        
+      }, error = function(e) {
+        cli_alert_danger("Error loading kolom instellingen: {e$message}")
+        return(NULL)
+      })
+    })
+    
+    # Observeer kolom checkbox changes en update database
+    # Create observers for each checkbox
+    beschikbare_kolommen <- get_beschikbare_kolommen()
+    
+    for (kolom_naam in names(beschikbare_kolommen)) {
+      local({
+        current_kolom <- kolom_naam
+        input_name <- paste0("kolom_", current_kolom)
+        
+        observeEvent(input[[input_name]], {
+          req(!is.null(input[[input_name]]))
+          req(current_user())
+          
+          # Get user ID fresh each time
+          tryCatch({
+            con <- get_db_connection()
+            on.exit(close_db_connection(con))
+            
+            gebruiker <- DBI::dbGetQuery(con, "
+              SELECT gebruiker_id FROM gebruikers WHERE gebruikersnaam = ?
+            ", params = list(current_user()))
+            
+            if (nrow(gebruiker) == 0) {
+              cli_alert_danger("Gebruiker niet gevonden")
+              return()
+            }
+            
+            gebruiker_id <- gebruiker$gebruiker_id[1]
+            
+            # Update database
+            update_gebruiker_kolom_instelling(
+              gebruiker_id = gebruiker_id,
+              kolom_naam = current_kolom,
+              zichtbaar = input[[input_name]]
+            )
+            
+            cli_alert_success("Kolom '{current_kolom}' zichtbaarheid bijgewerkt naar {input[[input_name]]}")
+            
+            # Clear dropdown cache to force refresh
+            clear_dropdown_cache()
+            
+            # Trigger refresh in zaakbeheer (als er een trigger is)
+            if (!is.null(global_dropdown_refresh_trigger)) {
+              cli_alert_info("Triggering global refresh...")
+              global_dropdown_refresh_trigger(global_dropdown_refresh_trigger() + 1)
+            }
+            
+          }, error = function(e) {
+            cli_alert_danger("Error updating kolom instelling: {e$message}")
+          })
+        }, ignoreInit = TRUE)
+      })
+    }
+    
+    # Reset naar standaard instellingen
+    observeEvent(input$btn_reset_kolommen, {
+      req(current_user())
+      
+      tryCatch({
+        con <- get_db_connection()
+        on.exit(close_db_connection(con))
+        
+        gebruiker <- DBI::dbGetQuery(con, "
+          SELECT gebruiker_id FROM gebruikers WHERE gebruikersnaam = ?
+        ", params = list(current_user()))
+        
+        if (nrow(gebruiker) == 0) return()
+        
+        gebruiker_id <- gebruiker$gebruiker_id[1]
+        
+        # Verwijder alle bestaande instellingen voor deze gebruiker
+        DBI::dbExecute(con, "
+          DELETE FROM gebruiker_kolom_instellingen WHERE gebruiker_id = ?
+        ", params = list(gebruiker_id))
+        
+        # Trigger refresh
+        kolom_instellingen_refresh(kolom_instellingen_refresh() + 1)
+        
+        cli_alert_success("Kolom instellingen gereset naar standaard")
+        showNotification("Kolom instellingen gereset naar standaard", type = "message")
+        
+        # Clear cache and trigger refresh in zaakbeheer
+        clear_dropdown_cache()
+        if (!is.null(global_dropdown_refresh_trigger)) {
+          cli_alert_info("Triggering global refresh after reset...")
+          global_dropdown_refresh_trigger(global_dropdown_refresh_trigger() + 1)
+        }
+        
+      }, error = function(e) {
+        cli_alert_danger("Error resetting kolom instellingen: {e$message}")
+        showNotification("Fout bij resetten kolom instellingen", type = "error")
+      })
+    })
+    
+    # ========================================================================
     # RETURN VALUES
     # ========================================================================
     
@@ -1866,7 +2087,284 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
       },
       refresh_dropdowns = function() {
         dropdown_refresh(dropdown_refresh() + 1)
+      },
+      refresh_kolom_instellingen = function() {
+        kolom_instellingen_refresh(kolom_instellingen_refresh() + 1)
       }
     ))
   })
+}
+
+# ============================================================================
+# UI HELPER FUNCTIONS FOR TABS
+# ============================================================================
+
+#' Kolom Zichtbaarheid Tab UI
+kolom_zichtbaarheid_tab_ui <- function(ns) {
+  div(
+    class = "mt-4",
+    
+    # Reset button only (no header)
+    div(
+      class = "d-flex justify-content-end mb-3",
+      actionButton(
+        ns("btn_reset_kolommen"),
+        "Reset naar Standaard",
+        class = "btn-outline-warning",
+        icon = icon("undo")
+      )
+    ),
+    
+    # Info text
+    div(
+      class = "alert alert-info mb-3",
+      icon("info-circle"), " ",
+      strong("Tip: "), "Bepaal welke kolommen zichtbaar zijn in de zaakbeheer tabel. ",
+      "De kolom 'Zaak ID' is altijd zichtbaar. Uw instellingen worden automatisch opgeslagen."
+    ),
+    
+    # Kolom instellingen
+    div(
+      class = "card",
+      div(
+        class = "card-header",
+        h5("Beschikbare Kolommen", class = "mb-0")
+      ),
+      div(
+        class = "card-body",
+        
+        # Zaak ID (altijd zichtbaar)
+        div(
+          class = "form-check mb-2 p-2 bg-light rounded",
+          checkboxInput(
+            ns("kolom_zaak_id"),
+            "Zaak ID (altijd zichtbaar)",
+            value = TRUE
+          ),
+          tags$script(paste0("$('#", ns("kolom_zaak_id"), "').prop('disabled', true);"))
+        ),
+        
+        # Dynamische kolommen
+        uiOutput(ns("kolommen_container"))
+      )
+    )
+  )
+}
+
+#' Gebruikersbeheer Tab UI
+gebruikersbeheer_tab_ui <- function(ns) {
+  div(
+    class = "mt-4",
+    
+    # Add user button only (no header)
+    div(
+      class = "d-flex justify-content-end mb-3",
+      actionButton(
+        ns("btn_add_user"),
+        "Nieuwe Gebruiker",
+        class = "btn-primary",
+        icon = icon("user-plus")
+      )
+    ),
+    
+    # Users table
+    div(
+      class = "card",
+      div(
+        class = "card-body",
+        DT::dataTableOutput(ns("users_table"))
+      )
+    )
+  )
+}
+
+#' Deadline Kleuren Tab UI
+deadline_kleuren_tab_ui <- function(ns) {
+  div(
+    class = "mt-4",
+    
+    # Add deadline kleur button only (no header)
+    div(
+      class = "d-flex justify-content-end mb-3",
+      actionButton(
+        ns("btn_add_deadline_kleur"),
+        "Nieuwe Kleurrange",
+        class = "btn-primary",
+        icon = icon("plus")
+      )
+    ),
+    
+    # Info text
+    div(
+      class = "alert alert-info mb-3",
+      icon("info-circle"), " ",
+      strong("Let op: "), "Definieer kleurranges voor deadline-waarschuwingen. ",
+      "Negatieve waarden betekenen 'dagen vóór de deadline', positieve waarden betekenen 'dagen ná de deadline'."
+    ),
+    
+    # Deadline kleuren table
+    div(
+      class = "card",
+      div(
+        class = "card-body",
+        DT::dataTableOutput(ns("deadline_kleuren_table"))
+      )
+    )
+  )
+}
+
+#' Dropdown Beheer Tab UI
+dropdown_beheer_tab_ui <- function(ns) {
+  div(
+    class = "mt-4",
+    
+    # Dropdown categories section
+    div(
+      class = "row",
+      
+      # Left column - Category selection
+      div(
+        class = "col-md-4",
+        
+        div(
+          class = "card",
+          div(
+            class = "card-header",
+            h5("Categorieën", class = "mb-0")
+          ),
+          div(
+            class = "card-body",
+            
+            # Category list
+            div(
+              class = "list-group",
+              
+              # Type Dienst
+              tags$a(
+                href = "#",
+                class = "list-group-item list-group-item-action",
+                onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'type_dienst', {priority: 'event'})"),
+                div(
+                  class = "d-flex w-100 justify-content-between",
+                  h6("Type Dienst", class = "mb-1"),
+                  span(textOutput(ns("count_type_dienst"), inline = TRUE), class = "badge bg-secondary")
+                )
+              ),
+              
+              # Rechtsgebied  
+              tags$a(
+                href = "#",
+                class = "list-group-item list-group-item-action",
+                onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'rechtsgebied', {priority: 'event'})"),
+                div(
+                  class = "d-flex w-100 justify-content-between",
+                  h6("Rechtsgebied", class = "mb-1"),
+                  span(textOutput(ns("count_rechtsgebied"), inline = TRUE), class = "badge bg-secondary")
+                )
+              ),
+              
+              # Status Zaak
+              tags$a(
+                href = "#",
+                class = "list-group-item list-group-item-action",
+                onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'status_zaak', {priority: 'event'})"),
+                div(
+                  class = "d-flex w-100 justify-content-between",
+                  h6("Status Zaak", class = "mb-1"),
+                  span(textOutput(ns("count_status_zaak"), inline = TRUE), class = "badge bg-secondary")
+                )
+              ),
+              
+              # Aanvragende Directie
+              tags$a(
+                href = "#",
+                class = "list-group-item list-group-item-action",
+                onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'aanvragende_directie', {priority: 'event'})"),
+                div(
+                  class = "d-flex w-100 justify-content-between",
+                  h6("Aanvragende Directie", class = "mb-1"),
+                  span(textOutput(ns("count_aanvragende_directie"), inline = TRUE), class = "badge bg-secondary")
+                )
+              ),
+              
+              # Type Wederpartij
+              tags$a(
+                href = "#",
+                class = "list-group-item list-group-item-action",
+                onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'type_wederpartij', {priority: 'event'})"),
+                div(
+                  class = "d-flex w-100 justify-content-between",
+                  h6("Type Wederpartij", class = "mb-1"),
+                  span(textOutput(ns("count_type_wederpartij"), inline = TRUE), class = "badge bg-secondary")
+                )
+              ),
+              
+              # Reden Inzet
+              tags$a(
+                href = "#",
+                class = "list-group-item list-group-item-action",
+                onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'reden_inzet', {priority: 'event'})"),
+                div(
+                  class = "d-flex w-100 justify-content-between",
+                  h6("Reden Inzet", class = "mb-1"),
+                  span(textOutput(ns("count_reden_inzet"), inline = TRUE), class = "badge bg-secondary")
+                )
+              ),
+              
+              # Hoedanigheid Partij
+              tags$a(
+                href = "#",
+                class = "list-group-item list-group-item-action",
+                onclick = paste0("Shiny.setInputValue('", ns("selected_category"), "', 'hoedanigheid_partij', {priority: 'event'})"),
+                div(
+                  class = "d-flex w-100 justify-content-between",
+                  h6("Hoedanigheid Partij", class = "mb-1"),
+                  span(textOutput(ns("count_hoedanigheid_partij"), inline = TRUE), class = "badge bg-secondary")
+                )
+              )
+            )
+          )
+        )
+      ),
+      
+      # Right column - Category values
+      div(
+        class = "col-md-8",
+        
+        div(
+          class = "card",
+          div(
+            class = "card-header d-flex justify-content-between align-items-center",
+            h5(textOutput(ns("category_title"), inline = TRUE), class = "mb-0"),
+            actionButton(
+              ns("btn_add_dropdown_value"),
+              "Nieuwe Waarde",
+              class = "btn-primary btn-sm",
+              icon = icon("plus")
+            )
+          ),
+          div(
+            class = "card-body",
+            
+            # Values table
+            conditionalPanel(
+              condition = paste0("input['", ns("selected_category"), "'] != null"),
+              DT::dataTableOutput(ns("dropdown_values_table"))
+            ),
+            
+            # No category selected message
+            conditionalPanel(
+              condition = paste0("input['", ns("selected_category"), "'] == null"),
+              div(
+                class = "text-center py-5 text-muted",
+                icon("arrow-left", class = "fa-2x mb-3"),
+                h5("Selecteer een categorie"),
+                p("Kies een categorie aan de linkerkant om de waarden te bekijken")
+              )
+            )
+          )
+        )
+      )
+    )
+  )
 }

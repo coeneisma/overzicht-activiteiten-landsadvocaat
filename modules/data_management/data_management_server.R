@@ -91,12 +91,35 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         return(data.frame())
       }
       
+      # Haal zichtbare kolommen voor huidige gebruiker op
+      req(current_user())
+      
+      tryCatch({
+        con <- get_db_connection()
+        on.exit(close_db_connection(con))
+        
+        gebruiker <- DBI::dbGetQuery(con, "
+          SELECT gebruiker_id FROM gebruikers WHERE gebruikersnaam = ?
+        ", params = list(current_user()))
+        
+        if (nrow(gebruiker) == 0) {
+          # Fallback naar alle kolommen als gebruiker niet gevonden
+          zichtbare_kolommen <- NULL
+        } else {
+          zichtbare_kolommen <- get_zichtbare_kolommen(gebruiker$gebruiker_id[1])
+        }
+        
+      }, error = function(e) {
+        # Fallback naar alle kolommen bij error
+        zichtbare_kolommen <- NULL
+      })
+      
       # Prepare display data with many-to-many directies (OPTIMIZED)
-      data %>%
+      prepared_data <- data %>%
         rowwise() %>%
         mutate(
           # Get directies for each zaak via many-to-many table (plain text for formatStyle)
-          Directie = {
+          directies = {
             dirs <- get_zaak_directies(zaak_id)
             if (length(dirs) == 0 || all(is.na(dirs))) {
               "Niet ingesteld"
@@ -120,51 +143,145 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             }
           },
           # Bereken looptijd (dagen vanaf aanmaak tot nu)
-          Looptijd = as.numeric(difftime(Sys.Date(), datum_aanmaak, units = "days")),
+          looptijd = as.numeric(difftime(Sys.Date(), datum_aanmaak, units = "days")),
           # Bereken dagen relatief tot deadline (negatief = voor deadline, positief = na deadline)
-          `Tijd tot deadline` = ifelse(!is.na(deadline), 
+          tijd_tot_deadline = ifelse(!is.na(deadline), 
             as.numeric(difftime(as.Date(deadline), Sys.Date(), units = "days")), 
             NA_real_
           )
         ) %>%
-        ungroup() %>%
-        select(
-          "Zaak ID" = zaak_id,
-          "Datum" = datum_aanmaak,
-          "Looptijd" = Looptijd,
-          "Deadline" = deadline,
-          "Tijd tot deadline" = `Tijd tot deadline`,
-          "Omschrijving" = omschrijving,
-          "Type Dienst" = type_dienst,
-          "Rechtsgebied" = rechtsgebied,
-          "Status" = status_zaak,
-          "Directie" = Directie,
-          "Advocaat" = advocaat,
-          "Kantoor" = adv_kantoor
-        ) %>%
-        mutate(
-          Datum = format_date_nl(Datum),
-          Deadline = ifelse(is.na(Deadline), "-", format_date_nl(as.Date(Deadline))),
-          Looptijd = paste0(Looptijd, " dagen"),
-          `Tijd tot deadline` = ifelse(
-            is.na(`Tijd tot deadline`), "-", 
-            ifelse(`Tijd tot deadline` < 0, paste0(abs(`Tijd tot deadline`), " dagen te laat"),
-              ifelse(`Tijd tot deadline` == 0, "Vandaag", 
-                ifelse(`Tijd tot deadline` > 0, paste0(`Tijd tot deadline`, " dagen"), "-")
+        ungroup()
+      
+      # Als geen kolom instellingen, gebruik alle kolommen
+      if (is.null(zichtbare_kolommen)) {
+        zichtbare_kolommen <- c("zaak_id", "status_zaak", "type_dienst", "rechtsgebied", 
+                                "omschrijving", "directies", "datum_aanmaak", "looptijd", 
+                                "deadline", "tijd_tot_deadline", "advocaat", "adv_kantoor",
+                                "laatst_gewijzigd", "gewijzigd_door")
+      }
+      
+      # Mapping van database kolomnamen naar display names
+      kolom_mapping <- list(
+        "zaak_id" = c(col = "zaak_id", display = "Zaak ID"),
+        "status_zaak" = c(col = "status_zaak", display = "Status"),
+        "type_dienst" = c(col = "type_dienst", display = "Type Dienst"),
+        "rechtsgebied" = c(col = "rechtsgebied", display = "Rechtsgebied"),
+        "omschrijving" = c(col = "omschrijving", display = "Omschrijving"),
+        "zaakaanduiding" = c(col = "zaakaanduiding", display = "Zaakaanduiding"),
+        "directies" = c(col = "directies", display = "Aanvragende Directies"),
+        "type_procedure" = c(col = "type_procedure", display = "Type Procedure"),
+        "hoedanigheid_partij" = c(col = "hoedanigheid_partij", display = "Hoedanigheid Partij"),
+        "type_wederpartij" = c(col = "type_wederpartij", display = "Type Wederpartij"),
+        "reden_inzet" = c(col = "reden_inzet", display = "Reden Inzet"),
+        "advocaat" = c(col = "advocaat", display = "Advocaat"),
+        "adv_kantoor" = c(col = "adv_kantoor", display = "Advocatenkantoor"),
+        "la_budget_wjz" = c(col = "la_budget_wjz", display = "LA Budget WJZ"),
+        "budget_andere_directie" = c(col = "budget_andere_directie", display = "Budget Andere Directie"),
+        "financieel_risico" = c(col = "financieel_risico", display = "Financieel Risico"),
+        "kostenplaats" = c(col = "kostenplaats", display = "Kostenplaats"),
+        "intern_ordernummer" = c(col = "intern_ordernummer", display = "Intern Ordernummer"),
+        "grootboekrekening" = c(col = "grootboekrekening", display = "Grootboekrekening"),
+        "budgetcode" = c(col = "budgetcode", display = "Budgetcode"),
+        "proza_link" = c(col = "proza_link", display = "ProZa Link"),
+        "locatie_formulier" = c(col = "locatie_formulier", display = "Locatie Formulier"),
+        "budget_beleid" = c(col = "budget_beleid", display = "Budget Beleid"),
+        "datum_aanmaak" = c(col = "datum_aanmaak", display = "Datum Aanmaak"),
+        "looptijd" = c(col = "looptijd", display = "Looptijd (dagen)"),
+        "deadline" = c(col = "deadline", display = "Deadline"),
+        "tijd_tot_deadline" = c(col = "tijd_tot_deadline", display = "Tijd tot Deadline"),
+        "laatst_gewijzigd" = c(col = "laatst_gewijzigd", display = "Laatst Gewijzigd"),
+        "gewijzigd_door" = c(col = "gewijzigd_door", display = "Gewijzigd Door")
+      )
+      
+      # Selecteer alleen zichtbare kolommen die beschikbaar zijn
+      beschikbare_kolommen <- names(prepared_data)
+      select_list <- list()
+      
+      for (visible_col in zichtbare_kolommen) {
+        if (visible_col %in% names(kolom_mapping)) {
+          mapping <- kolom_mapping[[visible_col]]
+          col_name <- mapping[["col"]]
+          display_name <- mapping[["display"]]
+          
+          if (col_name %in% beschikbare_kolommen) {
+            select_list[[display_name]] <- col_name
+          }
+        }
+      }
+      
+      # Selecteer de kolommen
+      result_data <- prepared_data %>%
+        select(!!!select_list)
+      
+      # Dynamisch formatteren van zichtbare kolommen
+      if (nrow(result_data) > 0) {
+        kolom_namen <- names(result_data)
+        
+        # Datum formatting
+        if ("Datum Aanmaak" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(`Datum Aanmaak` = format_date_nl(`Datum Aanmaak`))
+        }
+        
+        # Deadline formatting
+        if ("Deadline" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(Deadline = ifelse(is.na(Deadline), "-", format_date_nl(as.Date(Deadline))))
+        }
+        
+        # Looptijd formatting
+        if ("Looptijd (dagen)" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(`Looptijd (dagen)` = paste0(`Looptijd (dagen)`, " dagen"))
+        }
+        
+        # Tijd tot deadline formatting
+        if ("Tijd tot Deadline" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(`Tijd tot Deadline` = ifelse(
+              is.na(`Tijd tot Deadline`), "-", 
+              ifelse(`Tijd tot Deadline` < 0, paste0(abs(`Tijd tot Deadline`), " dagen te laat"),
+                ifelse(`Tijd tot Deadline` == 0, "Vandaag", 
+                  ifelse(`Tijd tot Deadline` > 0, paste0(`Tijd tot Deadline`, " dagen"), "-")
+                )
               )
-            )
-          ),
-          # Convert database values to display names (OPTIMIZED - bulk conversion)
-          `Type Dienst` = bulk_get_weergave_namen("type_dienst", `Type Dienst`),
-          Rechtsgebied = bulk_get_weergave_namen("rechtsgebied", Rechtsgebied),
-          Status = bulk_get_weergave_namen("status_zaak", Status),
-          # Truncate long descriptions
-          Omschrijving = ifelse(
-            nchar(Omschrijving) > 60, 
-            paste0(substr(Omschrijving, 1, 57), "..."), 
-            Omschrijving
-          )
-        )
+            ))
+        }
+        
+        # Convert database values to display names (OPTIMIZED - bulk conversion)
+        if ("Type Dienst" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(`Type Dienst` = bulk_get_weergave_namen("type_dienst", `Type Dienst`))
+        }
+        
+        if ("Rechtsgebied" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(Rechtsgebied = bulk_get_weergave_namen("rechtsgebied", Rechtsgebied))
+        }
+        
+        if ("Status" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(Status = bulk_get_weergave_namen("status_zaak", Status))
+        }
+        
+        # Truncate long descriptions
+        if ("Omschrijving" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(Omschrijving = ifelse(
+              nchar(Omschrijving) > 60, 
+              paste0(substr(Omschrijving, 1, 57), "..."), 
+              Omschrijving
+            ))
+        }
+        
+        # Format laatst_gewijzigd
+        if ("Laatst Gewijzigd" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(`Laatst Gewijzigd` = format(`Laatst Gewijzigd`, "%d-%m-%Y %H:%M"))
+        }
+      }
+      
+      return(result_data)
     }) %>% 
       debounce(300)  # Debounce for performance
 
@@ -221,10 +338,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         escape = FALSE
       )
       
-      # Apply background colors using formatStyle
+      # Apply background colors using formatStyle - alleen voor zichtbare kolommen
+      kolom_namen <- names(display_data)
       
       # Status column styling
-      if ("status_zaak" %in% names(alle_kleuren)) {
+      if ("Status" %in% kolom_namen && "status_zaak" %in% names(alle_kleuren)) {
         status_kleuren <- alle_kleuren[["status_zaak"]]
         
         # Get all unique weergave values and their colors
@@ -253,7 +371,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       }
       
       # Type Dienst column styling
-      if ("type_dienst" %in% names(alle_kleuren)) {
+      if ("Type Dienst" %in% kolom_namen && "type_dienst" %in% names(alle_kleuren)) {
         type_kleuren <- alle_kleuren[["type_dienst"]]
         
         weergave_values <- character()
@@ -280,7 +398,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       }
       
       # Rechtsgebied column styling
-      if ("rechtsgebied" %in% names(alle_kleuren)) {
+      if ("Rechtsgebied" %in% kolom_namen && "rechtsgebied" %in% names(alle_kleuren)) {
         rechts_kleuren <- alle_kleuren[["rechtsgebied"]]
         
         weergave_values <- character()
@@ -307,7 +425,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       }
       
       # Directie column styling (more complex due to comma-separated values)
-      if ("aanvragende_directie" %in% names(alle_kleuren)) {
+      if ("Aanvragende Directies" %in% kolom_namen && "aanvragende_directie" %in% names(alle_kleuren)) {
         directie_kleuren <- alle_kleuren[["aanvragende_directie"]]
         
         # For directies, we need to check if any of the comma-separated values has a color
@@ -328,7 +446,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         if (length(weergave_values) > 0) {
           dt <- dt %>% 
             DT::formatStyle(
-              "Directie",
+              "Aanvragende Directies",
               backgroundColor = DT::styleEqual(weergave_values, color_values),
               color = "black"
             )
@@ -336,10 +454,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       }
       
       # Deadline styling using configurable colors from database
-      deadline_values <- unique(display_data$`Tijd tot deadline`)
-      deadline_values <- deadline_values[!is.na(deadline_values) & deadline_values != "-"]
-      
-      if (length(deadline_values) > 0) {
+      if ("Tijd tot Deadline" %in% kolom_namen) {
+        deadline_values <- unique(display_data$`Tijd tot Deadline`)
+        deadline_values <- deadline_values[!is.na(deadline_values) & deadline_values != "-"]
+        
+        if (length(deadline_values) > 0) {
         # Get deadline color configuration from database
         deadline_kleuren_config <- tryCatch({
           get_deadline_kleuren()
@@ -407,11 +526,12 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         # Apply styling using styleEqual like the Status column
         dt <- dt %>%
           DT::formatStyle(
-            "Tijd tot deadline",
+            "Tijd tot Deadline",
             backgroundColor = DT::styleEqual(deadline_values, bg_colors),
             color = DT::styleEqual(deadline_values, text_colors),
             fontWeight = DT::styleEqual(deadline_values, font_weights)
           )
+        }
       }
       
       dt

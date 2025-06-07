@@ -448,15 +448,20 @@ bulk_get_weergave_namen()            # Voor bulk conversies
 ## 🔮 VOLGENDE PRIORITEITEN
 
 ### **Hoge Prioriteit:**
-1. **🎯 Kolom Zichtbaarheid per Gebruiker** - VOLGENDE SESSIE
-   - Implementeer user-specific column visibility in zaakbeheer tabel
-   - Persistent storage per gebruiker (database of localStorage)  
-   - Zaak ID altijd zichtbaar, rest configureerbaar
-   - UI in sidebar of settings voor kolom on/off toggles
-   - Gebruiker kan zelf bepalen welke kolommen zichtbaar zijn
+1. **🔄 Zaakaanduiding implementatie** - VOLGENDE SESSIE
+   - Vervang 'Omschrijving' met 'Zaakaanduiding' in alle formulieren
+   - Verwijder 'Omschrijving' kolom uit database
+   - Update alle CRUD operaties om Zaakaanduiding te gebruiken
+   - Migreer bestaande data indien nodig
+
+2. **🔀 Kolom volgorde aanpassen** - VOLGENDE SESSIE
+   - Uitbreiding van bestaande kolom zichtbaarheid functionaliteit
+   - Gebruikers kunnen kolom volgorde bepalen via drag & drop of move up/down
+   - Zaak ID blijft altijd eerste kolom
+   - Volgorde wordt opgeslagen in `gebruiker_kolom_instellingen` tabel (nieuwe kolom: `volgorde`)
 
 ### **Medium Prioriteit:**
-2. **Analyse Module Optimalisatie** ⏱️
+3. **Analyse Module Optimalisatie** ⏱️
    - Analyse tabblad laadt nog traag
    - Implementeer lazy loading en caching voor analysis_data
    - Debounce chart updates
@@ -591,3 +596,36 @@ Het probleem werd veroorzaakt door **conflicterende CSS styling** die was toegev
 **Impact**: 
 - 🟢 **OPGELOST** - Gebruikers kunnen alle filters volledig gebruiken
 - 🟢 **FUNCTIONAL** - Dropdown functionaliteit 100% operationeel
+
+## ✅ KOLOM ZICHTBAARHEID PER GEBRUIKER - VOLTOOID
+
+### **✅ VOLTOOID - User-specific Column Visibility**
+
+#### **Database Structuur:**
+- ✅ **`gebruiker_kolom_instellingen` tabel** voor opslag van kolom voorkeuren
+- ✅ **Foreign key** naar `gebruikers(gebruiker_id)`
+- ✅ **Unique constraint** op (gebruiker_id, kolom_naam)
+
+#### **Functionaliteit:**
+- ✅ **28 configureerbare kolommen** beschikbaar
+- ✅ **Zaak ID** altijd zichtbaar (disabled checkbox)
+- ✅ **Automatisch opslaan** bij checkbox wijziging
+- ✅ **Reset naar standaard** functionaliteit
+- ✅ **Real-time tabel updates** in zaakbeheer
+
+#### **UI/UX Integratie:**
+- ✅ **Nieuwe tab** in Instellingen module: "Kolom Zichtbaarheid"
+- ✅ **Role-based access**: 
+  - Admin gebruikers: Alle tabs (Gebruikersbeheer, Deadline Kleuren, Dropdown Beheer, Kolom Zichtbaarheid)
+  - Gewone gebruikers: Alleen Kolom Zichtbaarheid tab
+- ✅ **Intuïtieve checkboxes** met Nederlandse labels
+- ✅ **Persistente opslag** tussen sessies
+
+#### **Technische Details:**
+- ✅ **Helper functies** in `utils/database.R`:
+  - `get_gebruiker_kolom_instellingen()` - Haal voorkeuren op
+  - `update_gebruiker_kolom_instelling()` - Update individuele kolom
+  - `get_beschikbare_kolommen()` - Alle configureerbare kolommen
+  - `get_zichtbare_kolommen()` - Zichtbare kolommen met defaults
+- ✅ **Dynamic UI rendering** gebaseerd op gebruikersrol
+- ✅ **Performance geoptimaliseerd** met cache clearing

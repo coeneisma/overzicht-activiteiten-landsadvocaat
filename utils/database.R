@@ -1117,3 +1117,131 @@ get_deadline_kleur <- function(dagen_tot_deadline) {
   
   return("transparent")  # Default kleur als geen range matched
 }
+
+# =============================================================================
+# KOLOM ZICHTBAARHEID MANAGEMENT
+# =============================================================================
+
+#' Krijg dbplyr tabel voor gebruiker kolom instellingen
+tbl_gebruiker_kolom_instellingen <- function(con = NULL) {
+  if (is.null(con)) {
+    con <- get_db_connection()
+    on.exit(close_db_connection(con))
+  }
+  return(tbl(con, "gebruiker_kolom_instellingen"))
+}
+
+#' Haal kolom zichtbaarheid instellingen voor gebruiker op
+get_gebruiker_kolom_instellingen <- function(gebruiker_id) {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  result <- tbl_gebruiker_kolom_instellingen(con) %>%
+    filter(gebruiker_id == !!gebruiker_id) %>%
+    select(kolom_naam, zichtbaar) %>%
+    collect()
+  
+  # Converteer naar named list voor makkelijke lookup
+  instellingen <- setNames(as.logical(result$zichtbaar), result$kolom_naam)
+  
+  return(instellingen)
+}
+
+#' Update kolom zichtbaarheid voor gebruiker
+update_gebruiker_kolom_instelling <- function(gebruiker_id, kolom_naam, zichtbaar) {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  # Check of instelling al bestaat
+  bestaande <- DBI::dbGetQuery(con, "
+    SELECT id FROM gebruiker_kolom_instellingen 
+    WHERE gebruiker_id = ? AND kolom_naam = ?
+  ", params = list(gebruiker_id, kolom_naam))
+  
+  if (nrow(bestaande) > 0) {
+    # Update bestaande instelling
+    result <- DBI::dbExecute(con, "
+      UPDATE gebruiker_kolom_instellingen 
+      SET zichtbaar = ? 
+      WHERE gebruiker_id = ? AND kolom_naam = ?
+    ", params = list(as.integer(zichtbaar), gebruiker_id, kolom_naam))
+  } else {
+    # Voeg nieuwe instelling toe
+    result <- DBI::dbExecute(con, "
+      INSERT INTO gebruiker_kolom_instellingen (gebruiker_id, kolom_naam, zichtbaar) 
+      VALUES (?, ?, ?)
+    ", params = list(gebruiker_id, kolom_naam, as.integer(zichtbaar)))
+  }
+}
+
+#' Haal beschikbare kolommen voor zichtbaarheid configuratie op
+get_beschikbare_kolommen <- function() {
+  # Definieer alle beschikbare kolommen met Nederlandse labels
+  # Zaak ID is altijd zichtbaar en dus niet configureerbaar
+  kolommen <- list(
+    "status_zaak" = "Status",
+    "type_dienst" = "Type Dienst", 
+    "rechtsgebied" = "Rechtsgebied",
+    "omschrijving" = "Omschrijving",
+    "zaakaanduiding" = "Zaakaanduiding",
+    "directies" = "Aanvragende Directies",
+    "type_procedure" = "Type Procedure",
+    "hoedanigheid_partij" = "Hoedanigheid Partij",
+    "type_wederpartij" = "Type Wederpartij", 
+    "reden_inzet" = "Reden Inzet",
+    "advocaat" = "Advocaat",
+    "adv_kantoor" = "Advocatenkantoor",
+    "la_budget_wjz" = "LA Budget WJZ",
+    "budget_andere_directie" = "Budget Andere Directie",
+    "financieel_risico" = "Financieel Risico",
+    "kostenplaats" = "Kostenplaats",
+    "intern_ordernummer" = "Intern Ordernummer",
+    "grootboekrekening" = "Grootboekrekening",
+    "budgetcode" = "Budgetcode",
+    "proza_link" = "ProZa Link",
+    "locatie_formulier" = "Locatie Formulier",
+    "budget_beleid" = "Budget Beleid",
+    "datum_aanmaak" = "Datum Aanmaak",
+    "looptijd" = "Looptijd (dagen)",
+    "deadline" = "Deadline",
+    "tijd_tot_deadline" = "Tijd tot Deadline",
+    "laatst_gewijzigd" = "Laatst Gewijzigd",
+    "gewijzigd_door" = "Gewijzigd Door"
+  )
+  
+  return(kolommen)
+}
+
+#' Haal zichtbare kolommen voor gebruiker op met defaults
+get_zichtbare_kolommen <- function(gebruiker_id) {
+  # Haal gebruiker instellingen op
+  instellingen <- get_gebruiker_kolom_instellingen(gebruiker_id)
+  
+  # Default zichtbare kolommen (als gebruiker nog geen instellingen heeft)
+  default_zichtbaar <- c(
+    "status_zaak", "type_dienst", "rechtsgebied", "omschrijving", 
+    "directies", "datum_aanmaak", "laatst_gewijzigd"
+  )
+  
+  # Alle beschikbare kolommen
+  alle_kolommen <- names(get_beschikbare_kolommen())
+  
+  # Bepaal welke kolommen zichtbaar zijn
+  zichtbare_kolommen <- c("zaak_id")  # Zaak ID altijd zichtbaar
+  
+  for (kolom in alle_kolommen) {
+    if (kolom %in% names(instellingen)) {
+      # Gebruiker heeft instelling voor deze kolom
+      if (instellingen[[kolom]]) {
+        zichtbare_kolommen <- c(zichtbare_kolommen, kolom)
+      }
+    } else {
+      # Geen instelling, gebruik default
+      if (kolom %in% default_zichtbaar) {
+        zichtbare_kolommen <- c(zichtbare_kolommen, kolom)
+      }
+    }
+  }
+  
+  return(zichtbare_kolommen)
+}
