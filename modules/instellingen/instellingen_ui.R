@@ -16,16 +16,6 @@ instellingen_ui <- function(id) {
   div(
     class = "container-fluid p-4",
     
-    # Page header
-    div(
-      class = "row mb-4",
-      div(
-        class = "col-12",
-        h1("Systeem Instellingen", class = "mb-2"),
-        p("Beheer gebruikers en dropdown opties", class = "text-muted")
-      )
-    ),
-    
     # Settings tabs
     tabsetPanel(
       id = ns("settings_tabs"),
@@ -60,6 +50,48 @@ instellingen_ui <- function(id) {
             div(
               class = "card-body",
               DT::dataTableOutput(ns("users_table"))
+            )
+          )
+        )
+      ),
+      
+      # ======================================================================
+      # DEADLINE KLEUREN TAB
+      # ======================================================================
+      
+      tabPanel(
+        title = div(icon("calendar-times"), " Deadline Kleuren"),
+        value = "tab_deadline_kleuren",
+        
+        div(
+          class = "mt-4",
+          
+          # Deadline kleuren section header
+          div(
+            class = "d-flex justify-content-between align-items-center mb-3",
+            h3("Deadline Kleurenbeheer"),
+            actionButton(
+              ns("btn_add_deadline_kleur"),
+              "Nieuwe Kleurrange",
+              class = "btn-primary",
+              icon = icon("plus")
+            )
+          ),
+          
+          # Info text
+          div(
+            class = "alert alert-info mb-3",
+            icon("info-circle"), " ",
+            strong("Let op: "), "Definieer kleurranges voor deadline-waarschuwingen. ",
+            "Negatieve waarden betekenen 'dagen vóór de deadline', positieve waarden betekenen 'dagen ná de deadline'."
+          ),
+          
+          # Deadline kleuren table
+          div(
+            class = "card",
+            div(
+              class = "card-body",
+              DT::dataTableOutput(ns("deadline_kleuren_table"))
             )
           )
         )

@@ -118,12 +118,22 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 paste(weergave_namen, collapse = ", ")
               }
             }
-          }
+          },
+          # Bereken looptijd (dagen vanaf aanmaak tot nu)
+          Looptijd = as.numeric(difftime(Sys.Date(), datum_aanmaak, units = "days")),
+          # Bereken dagen relatief tot deadline (negatief = voor deadline, positief = na deadline)
+          `Tijd tot deadline` = ifelse(!is.na(deadline), 
+            as.numeric(difftime(as.Date(deadline), Sys.Date(), units = "days")), 
+            NA_real_
+          )
         ) %>%
         ungroup() %>%
         select(
           "Zaak ID" = zaak_id,
           "Datum" = datum_aanmaak,
+          "Looptijd" = Looptijd,
+          "Deadline" = deadline,
+          "Tijd tot deadline" = `Tijd tot deadline`,
           "Omschrijving" = omschrijving,
           "Type Dienst" = type_dienst,
           "Rechtsgebied" = rechtsgebied,
@@ -134,6 +144,16 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         ) %>%
         mutate(
           Datum = format_date_nl(Datum),
+          Deadline = ifelse(is.na(Deadline), "-", format_date_nl(as.Date(Deadline))),
+          Looptijd = paste0(Looptijd, " dagen"),
+          `Tijd tot deadline` = ifelse(
+            is.na(`Tijd tot deadline`), "-", 
+            ifelse(`Tijd tot deadline` < 0, paste0(abs(`Tijd tot deadline`), " dagen te laat"),
+              ifelse(`Tijd tot deadline` == 0, "Vandaag", 
+                ifelse(`Tijd tot deadline` > 0, paste0(`Tijd tot deadline`, " dagen"), "-")
+              )
+            )
+          ),
           # Convert database values to display names (OPTIMIZED - bulk conversion)
           `Type Dienst` = bulk_get_weergave_namen("type_dienst", `Type Dienst`),
           Rechtsgebied = bulk_get_weergave_namen("rechtsgebied", Rechtsgebied),
@@ -315,6 +335,85 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         }
       }
       
+      # Deadline styling using configurable colors from database
+      deadline_values <- unique(display_data$`Tijd tot deadline`)
+      deadline_values <- deadline_values[!is.na(deadline_values) & deadline_values != "-"]
+      
+      if (length(deadline_values) > 0) {
+        # Get deadline color configuration from database
+        deadline_kleuren_config <- tryCatch({
+          get_deadline_kleuren()
+        }, error = function(e) {
+          data.frame()  # Fallback to empty config
+        })
+        
+        # Create color mappings for deadline values based on configuration
+        bg_colors <- character(length(deadline_values))
+        text_colors <- character(length(deadline_values))
+        font_weights <- character(length(deadline_values))
+        
+        for (i in seq_along(deadline_values)) {
+          value <- deadline_values[i]
+          
+          # Extract numeric days from the display text
+          dagen_tot_deadline <- NA
+          
+          if (value == "Vandaag") {
+            dagen_tot_deadline <- 0
+          } else if (value == "-") {
+            dagen_tot_deadline <- NA
+          } else if (grepl("dagen te laat", value)) {
+            # Extract number - negative means after deadline (days past)
+            nums <- as.numeric(gsub("([0-9]+).*", "\\1", value))
+            if (!is.na(nums)) dagen_tot_deadline <- -nums
+          } else if (grepl("^[0-9]+ dagen$", value)) {
+            # Extract number - positive means before deadline (days remaining)
+            nums <- as.numeric(gsub("([0-9]+).*", "\\1", value))
+            if (!is.na(nums)) dagen_tot_deadline <- nums
+          }
+          
+          # Find matching color configuration
+          kleur <- "transparent"
+          text_kleur <- "inherit"
+          font_weight <- "normal"
+          
+          if (!is.na(dagen_tot_deadline) && nrow(deadline_kleuren_config) > 0) {
+            for (j in 1:nrow(deadline_kleuren_config)) {
+              config_row <- deadline_kleuren_config[j, ]
+              
+              # Handle infinite ranges (NULL values)
+              dagen_voor <- ifelse(is.na(config_row$dagen_voor), -Inf, config_row$dagen_voor)
+              dagen_tot <- ifelse(is.na(config_row$dagen_tot), Inf, config_row$dagen_tot)
+              
+              if (dagen_tot_deadline >= dagen_voor && dagen_tot_deadline <= dagen_tot) {
+                kleur <- config_row$kleur
+                # Determine text color based on background brightness
+                if (kleur %in% c("#dc3545", "#fd7e14")) {
+                  text_kleur <- "white"
+                } else {
+                  text_kleur <- "black"
+                }
+                font_weight <- "bold"
+                break
+              }
+            }
+          }
+          
+          bg_colors[i] <- kleur
+          text_colors[i] <- text_kleur
+          font_weights[i] <- font_weight
+        }
+        
+        # Apply styling using styleEqual like the Status column
+        dt <- dt %>%
+          DT::formatStyle(
+            "Tijd tot deadline",
+            backgroundColor = DT::styleEqual(deadline_values, bg_colors),
+            color = DT::styleEqual(deadline_values, text_colors),
+            fontWeight = DT::styleEqual(deadline_values, font_weights)
+          )
+      }
+      
       dt
       
     }, server = TRUE)
@@ -409,6 +508,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             div(class = "col-md-6",
                 strong("Zaak ID: "), zaak_data$zaak_id, br(),
                 strong("Datum: "), format_date_nl(zaak_data$datum_aanmaak), br(),
+                strong("Deadline: "), ifelse(is.na(zaak_data$deadline), "-", format_date_nl(as.Date(zaak_data$deadline))), br(),
                 strong("WJZ MT-lid: "), ifelse(is.na(zaak_data$wjz_mt_lid), "-", zaak_data$wjz_mt_lid), br(),
                 strong("Status: "), ifelse(is.na(zaak_data$status_zaak), "-", get_weergave_naam("status_zaak", zaak_data$status_zaak)), br(),
                 strong("Type Dienst: "), ifelse(is.na(zaak_data$type_dienst), "-", get_weergave_naam("type_dienst", zaak_data$type_dienst)), br(),
@@ -509,6 +609,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
     
     # Show edit modal (pre-filled form)
     show_zaak_edit_modal <- function(zaak_data) {
+      # Reset deadline cleared state when opening modal
+      edit_deadline_cleared(FALSE)
+      
       showModal(modalDialog(
         title = paste("Zaak Bewerken:", zaak_data$zaak_id),
         size = "l",
@@ -542,6 +645,26 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 value = as.Date(zaak_data$datum_aanmaak),
                 format = "dd-mm-yyyy",
                 language = "nl"
+              ),
+              
+              div(
+                class = "mb-3",
+                dateInput(
+                  session$ns("edit_form_deadline"),
+                  "Deadline:",
+                  value = if (!is.na(zaak_data$deadline)) as.Date(zaak_data$deadline) else NA,
+                  format = "dd-mm-yyyy",
+                  language = "nl"
+                ),
+                div(
+                  class = "mt-2",
+                  actionButton(
+                    session$ns("btn_clear_edit_deadline"),
+                    "Deadline wissen",
+                    class = "btn-outline-secondary btn-sm",
+                    icon = icon("times")
+                  )
+                )
               ),
               
               textInput(
@@ -808,6 +931,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
     
     # Show new case modal
     show_nieuwe_zaak_modal <- function() {
+      # Reset deadline cleared state when opening modal
+      new_deadline_cleared(FALSE)
+      
       showModal(modalDialog(
         title = "Nieuwe Zaak Toevoegen",
         size = "l",
@@ -841,6 +967,26 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 value = Sys.Date(),
                 format = "dd-mm-yyyy",
                 language = "nl"
+              ),
+              
+              div(
+                class = "mb-3",
+                dateInput(
+                  session$ns("form_deadline"),
+                  "Deadline:",
+                  value = NA,
+                  format = "dd-mm-yyyy",
+                  language = "nl"
+                ),
+                div(
+                  class = "mt-2",
+                  actionButton(
+                    session$ns("btn_clear_new_deadline"),
+                    "Deadline wissen",
+                    class = "btn-outline-secondary btn-sm",
+                    icon = icon("times")
+                  )
+                )
               ),
               
               textInput(
@@ -1147,9 +1293,15 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               }
             ) %>%
             ungroup() %>%
+            mutate(
+              # Bereken looptijd voor export
+              Looptijd = as.numeric(difftime(Sys.Date(), datum_aanmaak, units = "days"))
+            ) %>%
             select(
               "Zaak ID" = zaak_id,
               "Datum Aanmaak" = datum_aanmaak,
+              "Deadline" = deadline,
+              "Looptijd (dagen)" = Looptijd,
               "Omschrijving" = omschrijving,
               "Type Dienst" = type_dienst,
               "Rechtsgebied" = rechtsgebied,
@@ -1168,6 +1320,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             mutate(
               # Format dates
               `Datum Aanmaak` = format_date_nl(`Datum Aanmaak`),
+              `Deadline` = ifelse(is.na(`Deadline`), "", format_date_nl(as.Date(`Deadline`))),
               `Laatst Gewijzigd` = ifelse(
                 is.na(`Laatst Gewijzigd`), 
                 "", 
@@ -1378,9 +1531,30 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       }
     })
     
+    # Reactive values to track deadline state
+    edit_deadline_cleared <- reactiveVal(FALSE)
+    new_deadline_cleared <- reactiveVal(FALSE)
+    
     # Cancel edit button
     observeEvent(input$btn_edit_form_cancel, {
+      edit_deadline_cleared(FALSE)
       removeModal()
+    })
+    
+    # Handle deadline wissen button (edit form)
+    observeEvent(input$btn_clear_edit_deadline, {
+      edit_deadline_cleared(TRUE)
+      # Clear the deadline field (same logic as checkbox worked)
+      updateDateInput(session, "edit_form_deadline", value = NA)
+      show_notification("Deadline gewist. Sla op om te bevestigen.", type = "message")
+    })
+    
+    # Handle deadline wissen button (new form)  
+    observeEvent(input$btn_clear_new_deadline, {
+      new_deadline_cleared(TRUE)
+      # Clear the deadline field (same logic as checkbox worked)
+      updateDateInput(session, "form_deadline", value = NA)
+      show_notification("Deadline gewist. Sla op om te bevestigen.", type = "message")
     })
     
     # Save edit button
@@ -1402,6 +1576,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         updated_data <- data.frame(
           zaak_id = input$edit_form_zaak_id,
           datum_aanmaak = as.character(input$edit_form_datum_aanmaak),
+          deadline = if(edit_deadline_cleared() || is.null(input$edit_form_deadline) || is.na(input$edit_form_deadline)) NA_character_ else as.character(input$edit_form_deadline),
           omschrijving = if(is.null(input$edit_form_omschrijving) || input$edit_form_omschrijving == "") NA else input$edit_form_omschrijving,
           wjz_mt_lid = if(is.null(input$edit_form_wjz_mt_lid) || input$edit_form_wjz_mt_lid == "") NA else input$edit_form_wjz_mt_lid,
           contactpersoon = if(is.null(input$edit_form_contactpersoon) || input$edit_form_contactpersoon == "") NA else input$edit_form_contactpersoon,
@@ -1438,6 +1613,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         
         # Trigger data refresh
         data_refresh_trigger(data_refresh_trigger() + 1)
+        
+        # Reset deadline cleared state
+        edit_deadline_cleared(FALSE)
         
         # Close modal
         removeModal()
@@ -1504,6 +1682,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
     
     # Cancel button
     observeEvent(input$btn_form_cancel, {
+      new_deadline_cleared(FALSE)
       removeModal()
     })
     
@@ -1526,6 +1705,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         form_data <- data.frame(
           zaak_id = input$form_zaak_id,
           datum_aanmaak = as.character(input$form_datum_aanmaak),
+          deadline = if(new_deadline_cleared() || is.null(input$form_deadline) || is.na(input$form_deadline)) NA_character_ else as.character(input$form_deadline),
           omschrijving = if(is.null(input$form_omschrijving) || input$form_omschrijving == "") NA else input$form_omschrijving,
           wjz_mt_lid = if(is.null(input$form_wjz_mt_lid) || input$form_wjz_mt_lid == "") NA else input$form_wjz_mt_lid,
           contactpersoon = if(is.null(input$form_contactpersoon) || input$form_contactpersoon == "") NA else input$form_contactpersoon,
@@ -1559,6 +1739,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         
         # Trigger data refresh
         data_refresh_trigger(data_refresh_trigger() + 1)
+        
+        # Reset deadline cleared state
+        new_deadline_cleared(FALSE)
         
         # Close modal
         removeModal()

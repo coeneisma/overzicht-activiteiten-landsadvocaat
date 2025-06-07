@@ -214,6 +214,13 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
         # Filter rows where directies column contains any of the selected display names
         filtered <- filtered %>% 
           filter(sapply(directies, function(dirs) {
+            # Als we zoeken naar "Niet ingesteld", check of dirs leeg of "Niet ingesteld" is
+            if ("Niet ingesteld" %in% selected_display_names) {
+              if (is.na(dirs) || dirs == "" || dirs == "Niet ingesteld") {
+                return(TRUE)
+              }
+            }
+            # Voor andere waarden, check of ze in de string voorkomen
             if (is.na(dirs) || dirs == "" || dirs == "Niet ingesteld") return(FALSE)
             any(sapply(selected_display_names, function(name) grepl(name, dirs, fixed = TRUE)))
           }))

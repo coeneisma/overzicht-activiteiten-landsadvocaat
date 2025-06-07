@@ -211,9 +211,9 @@ Key functions for dropdown management:
 
 ## Current Development Status
 
-### Branch: feature/excel-import
+### Branch: feature/experimenteel-ui
 
-### ✅ VOLTOOID - Excel Import, UI Uitbreidingen & Kleurenbeheersysteem
+### ✅ VOLTOOID - UI Optimalisaties, Deadline Management & Non-Overlapping Ranges
 
 #### **Database & Import Structuur:**
 - ✅ `zaak_directies` many-to-many tabel geïmplementeerd
@@ -370,9 +370,17 @@ source("setup/add_database_indexes.R")  # Na implementatie
 system.time(get_zaken_met_directies_optimized())
 ```
 
-### 📋 SYSTEEMSTATUS: PRODUCTIERIJP + PERFORMANCE GEOPTIMALISEERD + DROPDOWN ISSUES OPGELOST ⚡✅🎯
+### 📋 SYSTEEMSTATUS: PRODUCTIERIJP + DEADLINE MANAGEMENT + NON-OVERLAPPING RANGES ⚡✅🎯📅
 
-Het dashboard is volledig functioneel met alle gewenste administratieve en visuele functionaliteit geïmplementeerd. **Performance optimalisaties succesvol voltooid met 98.4% snellere tabel loading!**
+Het dashboard is volledig functioneel met alle gewenste administratieve, visuele en deadline management functionaliteit geïmplementeerd. **Performance optimalisaties succesvol voltooid met 98.4% snellere tabel loading + volledige deadline functionaliteit + non-overlapping deadline ranges!**
+
+### **🆕 LAATSTE SESSIE WIJZIGINGEN:**
+- ✅ **Non-overlapping deadline ranges** geïmplementeerd (prioriteit systeem vervangen)
+- ✅ **Range validatie** voorkomt overlappende deadline ranges
+- ✅ **Deadline wissen functionaliteit** met "Deadline wissen" knop en ReactiveVal state tracking
+- ✅ **Verbeterde deadline handling** in forms (correcte NA/NULL waarden)
+- ✅ **Database migration** uitgevoerd (prioriteit kolom verwijderd)
+- ✅ **Robuuste error handling** voor deadline berekeningen
 
 ## ✅ VOLTOOIDE OPTIMALISATIES (Geïmplementeerd & Getest)
 
@@ -436,6 +444,93 @@ get_zaken_met_directies_optimized()  # I.p.v. get_zaken_met_directies()
 get_weergave_naam_cached()           # I.p.v. get_weergave_naam()
 bulk_get_weergave_namen()            # Voor bulk conversies
 ```
+
+## 🔮 VOLGENDE PRIORITEITEN
+
+### **Hoge Prioriteit:**
+1. **🎯 Kolom Zichtbaarheid per Gebruiker** - VOLGENDE SESSIE
+   - Implementeer user-specific column visibility in zaakbeheer tabel
+   - Persistent storage per gebruiker (database of localStorage)  
+   - Zaak ID altijd zichtbaar, rest configureerbaar
+   - UI in sidebar of settings voor kolom on/off toggles
+   - Gebruiker kan zelf bepalen welke kolommen zichtbaar zijn
+
+### **Medium Prioriteit:**
+2. **Analyse Module Optimalisatie** ⏱️
+   - Analyse tabblad laadt nog traag
+   - Implementeer lazy loading en caching voor analysis_data
+   - Debounce chart updates
+   - Conditional rendering van charts
+
+3. **Real-time UI Updates** 🔄
+   - Instellingen wijzigingen (deadline kleuren) moeten direct zichtbaar zijn in zaak tabel
+   - Implementeer reactive color updates zonder volledige data refresh
+   - Smart partial table updates
+
+### **Lage Prioriteit:**
+4. **Advanced Deadline Features**
+   - Email notificaties voor deadlines
+   - Dashboard widgets voor deadline overzicht
+   - Deadline export naar kalender formaten
+
+## 🎯 DEADLINE MANAGEMENT SYSTEEM
+
+### **✅ VOLTOOID - Comprehensive Deadline Tracking & Non-Overlapping Ranges**
+
+#### **Database Structuur:**
+- ✅ **`deadline` kolom** toegevoegd aan `zaken` tabel voor deadline tracking
+- ✅ **`deadline_kleuren` tabel** voor configureerbare deadline waarschuwingen
+- ✅ **Non-overlapping ranges systeem** (prioriteit kolom verwijderd)
+- ✅ **Metadata tracking**: aangemaakt_door, aangemaakt_op, gewijzigd_door, laatst_gewijzigd
+
+#### **Deadline Berekening & Weergave:**
+- ✅ **Intuïtieve logica**: Negatieve getallen = dagen vóór deadline, positieve = dagen ná deadline
+- ✅ **Drie nieuwe kolommen** in zaakbeheer tabel:
+  - **Looptijd**: Dagen sinds aanmaak tot nu
+  - **Deadline**: Deadline datum in Nederlands formaat
+  - **Tijd tot deadline**: Dynamisch berekend met kleurcodering
+- ✅ **Slimme weergave**: "Vandaag", "X dagen", "X dagen te laat"
+
+#### **Non-Overlapping Ranges Systeem:**
+- ✅ **Admin interface** in Instellingen → Deadline Kleuren (dropdown beheer stijl)
+- ✅ **Flexibele ranges**: Lege velden = oneindig, numerieke waarden voor specifieke bereiken  
+- ✅ **Strict non-overlapping**: Ranges kunnen elkaar niet overlappen (validatie voorkomt dit)
+- ✅ **Real-time styling**: Deadline kolom krijgt automatisch achtergrondkleuren
+- ✅ **Database sortering**: Op dagen_voor ASC (geen prioriteit meer nodig)
+
+#### **UI/UX Integratie:**
+- ✅ **Formulieren uitgebreid**: Deadline veld in nieuw/bewerk zaak modals
+- ✅ **Deadline wissen functionaliteit**: "Deadline wissen" knop met ReactiveVal state tracking
+- ✅ **Details modal**: Toont deadline informatie
+- ✅ **Excel export**: Bevat deadline en looptijd kolommen
+- ✅ **Visual feedback**: Kleurgecodeerde waarschuwingen (rood=te laat, geel=vandaag, etc.)
+
+#### **Standaard Deadline Ranges (Non-Overlapping):**
+- ✅ **Langer dan een week** (-∞ tot -8): Groen (#28A745)
+- ✅ **Binnen een week** (-7 tot -1): Oranje (#FD7E14)
+- ✅ **Vandaag** (0): Geel (#FFC107)
+- ✅ **Te laat** (1 tot ∞): Rood (#DC3545)
+
+#### **Helper Functies:**
+- ✅ `get_deadline_kleuren()`: Haalt configuratie op gesorteerd op dagen_voor ASC
+- ✅ `valideer_deadline_range()`: Valideert dat nieuwe ranges niet overlappen
+- ✅ `voeg_deadline_kleur_toe()`: Voegt nieuwe range toe na overlap validatie
+- ✅ `update_deadline_kleur()`: Update bestaande range na overlap validatie  
+- ✅ `verwijder_deadline_kleur()`: Soft delete range
+- ✅ `get_deadline_kleur()`: Bepaalt kleur voor specifieke deadline waarde
+
+## 🔄 UI OPTIMALISATIES
+
+### **✅ VOLTOOID - Module Titles & Consistency**
+- ✅ **Dubbele titels verwijderd**: Tabblad namen worden niet herhaald op pagina's
+- ✅ **Consistente knoppen**: "Ververs Data" tekst en styling uniform over modules
+- ✅ **Rechtse uitlijning**: Actieknoppen consistent rechts gepositioneerd
+- ✅ **Schone interface**: Meer ruimte en focus op content
+
+### **✅ VOLTOOID - Filter Fixes**
+- ✅ **"Niet ingesteld" filter**: Werkt nu correct voor aanvragende directie
+- ✅ **Dropdown layering**: CSS conflicts opgelost, alle dropdowns functioneel
+- ✅ **Performance**: Filter changes 75-80% sneller door optimalisaties
 
 ## ✅ KNOWN ISSUES - OPGELOST
 

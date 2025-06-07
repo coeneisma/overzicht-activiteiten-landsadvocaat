@@ -15,33 +15,26 @@ analyse_ui <- function(id) {
   tagList(
     
     # ==========================================================================
-    # PAGE HEADER
+    # ACTION BUTTONS
     # ==========================================================================
     
     div(
-      class = "d-flex justify-content-between align-items-center mb-4",
-      
-      # Title section
-      div(
-        h1("Analyse Dashboard", class = "mb-1"),
-        p("Statistische analyses en visualisaties van zakenportefeuille", class = "text-muted mb-1"),
-        p("Gebruik de filters in de sidebar om de analyses aan te passen", class = "text-info small mb-0")
-      ),
+      class = "d-flex justify-content-end mb-4",
       
       # Action buttons
       div(
         class = "btn-group",
-        actionButton(
-          ns("btn_refresh"),
-          "Ververs Data",
-          class = "btn-outline-primary",
-          icon = icon("sync-alt")
-        ),
         downloadButton(
           ns("download_excel"),
           "Export naar Excel",
           class = "btn-success",
           icon = icon("file-excel")
+        ),
+        actionButton(
+          ns("btn_refresh"),
+          "Ververs Data",
+          class = "btn-outline-primary",
+          icon = icon("sync-alt")
         )
       )
     ),
