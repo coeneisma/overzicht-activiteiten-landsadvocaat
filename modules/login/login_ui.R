@@ -64,8 +64,7 @@ login_ui <- function(id) {
           # Form instructions
           div(
             class = "text-center mb-4",
-            h5("Inloggen", class = "card-title"),
-            div(class = "text-muted small", "Gebruik uw ministerie-inloggegevens")
+            h5("Inloggen", class = "card-title")
           ),
           
           # Login form
@@ -129,21 +128,6 @@ login_ui <- function(id) {
               icon("exclamation-triangle"), " ",
               div(class = "fw-bold", "Inloggen mislukt"),
               div("Controleer uw gebruikersnaam en wachtwoord")
-            )
-          ),
-          
-          # Demo credentials (only in development)
-          conditionalPanel(
-            condition = "!output.production_mode",
-            div(
-              class = "mt-4 p-3 bg-light rounded",
-              h6("Demo Inloggegevens:", class = "text-muted"),
-              div(
-                class = "small text-muted",
-                div(class = "fw-bold d-inline", "Admin:"), " admin / admin123",
-                tags$br(),
-                div(class = "fw-bold d-inline", "Test:"), " test / test123"
-              )
             )
           )
         ),
