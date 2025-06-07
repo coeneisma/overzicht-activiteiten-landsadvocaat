@@ -1399,6 +1399,464 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
     })
     
     # ========================================================================
+    # DEADLINE KLEUREN BEHEER
+    # ========================================================================
+    
+    # Deadline kleuren refresh trigger
+    deadline_kleuren_refresh <- reactiveVal(0)
+    
+    # Load deadline kleuren data
+    deadline_kleuren_data <- reactive({
+      deadline_kleuren_refresh()  # React to refresh trigger
+      
+      tryCatch({
+        get_deadline_kleuren()
+      }, error = function(e) {
+        cli_alert_danger("Error loading deadline kleuren: {e$message}")
+        data.frame()
+      })
+    })
+    
+    # Deadline kleuren table output  
+    output$deadline_kleuren_table <- DT::renderDataTable({
+      
+      data <- deadline_kleuren_data()
+      
+      if (nrow(data) == 0) {
+        return(DT::datatable(
+          data.frame("Bericht" = "Geen deadline kleuren gevonden"),
+          options = list(searching = FALSE, paging = FALSE, info = FALSE),
+          rownames = FALSE
+        ))
+      }
+      
+      # Format data for display - same style as dropdown values table
+      display_data <- data %>%
+        mutate(
+          Beschrijving = beschrijving,
+          Actief = ifelse(actief == 1, "Ja", "Nee"),
+          `Van (dagen)` = ifelse(is.na(dagen_voor), "∞", as.character(dagen_voor)),
+          `Tot (dagen)` = ifelse(is.na(dagen_tot), "∞", as.character(dagen_tot)),
+          Door = ifelse(is.na(aangemaakt_door), "Systeem", aangemaakt_door),
+          Aangemaakt = ifelse(is.na(aangemaakt_op), "-", format_date_nl(as.Date(aangemaakt_op))),
+          Acties = paste0(
+            '<button class="btn btn-sm btn-outline-danger deadline-delete-btn" data-id="', id, '">',
+            '<i class="fa fa-trash"></i></button>'
+          )
+        ) %>%
+        select(Beschrijving, Actief, `Van (dagen)`, `Tot (dagen)`, Door, Aangemaakt, Acties)
+      
+      # Apply colors to the Beschrijving column background - same style as dropdown beheer
+      dt <- DT::datatable(
+        display_data,
+        selection = 'none',
+        options = list(
+          pageLength = 25,
+          lengthMenu = c(10, 25, 50),
+          searching = TRUE,
+          ordering = TRUE,
+          columnDefs = list(
+            list(className = "dt-center", targets = c(1, 2, 3, 4, 5, 6)),
+            list(width = "120px", targets = 6),  # Acties column
+            list(orderable = FALSE, targets = 6)  # No sorting on Acties
+          ),
+          language = list(
+            search = "Zoeken:",
+            lengthMenu = "Toon _MENU_ items",
+            info = "Toont _START_ tot _END_ van _TOTAL_ items"
+          )
+        ),
+        rownames = FALSE,
+        escape = FALSE,
+        class = "table table-striped table-hover compact"
+      )
+      
+      # Apply color styling to Beschrijving column using the kleur field
+      if (nrow(data) > 0) {
+        # Get colors for styling  
+        kleuren <- setNames(data$kleur, data$beschrijving)
+        
+        # Filter out empty/white colors
+        kleuren <- kleuren[!is.na(kleuren) & kleuren != "" & kleuren != "#ffffff"]
+        
+        if (length(kleuren) > 0) {
+          dt <- dt %>%
+            DT::formatStyle(
+              "Beschrijving",
+              backgroundColor = DT::styleEqual(names(kleuren), kleuren),
+              color = "black",
+              fontWeight = "bold"
+            )
+        }
+      }
+      
+      # Add JavaScript for button handling and row clicks
+      dt$dependencies <- append(dt$dependencies, list(
+        htmltools::htmlDependency(
+          name = "deadline-kleuren-interactions",
+          version = "1.0", 
+          src = c(href = ""),
+          script = NULL,
+          head = HTML("
+            <script>
+            $(document).ready(function() {
+              $(document).on('click', '.deadline-delete-btn', function(e) {
+                e.stopPropagation();
+                var id = $(this).data('id');
+                Shiny.setInputValue('instellingen-delete_deadline_kleur_id', id, {priority: 'event'});
+              });
+            });
+            </script>
+          ")
+        )
+      ))
+      
+      dt
+      
+    }, server = TRUE)
+    
+    # Handle deadline kleuren table row clicks for edit
+    last_clicked_deadline_info <- reactiveVal(NULL)
+    
+    observeEvent(input$deadline_kleuren_table_cell_clicked, {
+      
+      info <- input$deadline_kleuren_table_cell_clicked
+      
+      if (!is.null(info$row) && info$row > 0) {
+        
+        # Don't open edit modal if clicked on Actions column (last column)
+        data <- deadline_kleuren_data()
+        if (is.null(data) || nrow(data) == 0) return()
+        
+        # Actions column is the last column (index 6)
+        if (!is.null(info$col) && info$col >= 6) {
+          return()  # Ignore clicks on Actions column
+        }
+        
+        # Simple duplicate prevention
+        current_info <- paste0(info$row, "_", info$col)
+        if (!is.null(last_clicked_deadline_info()) && current_info == last_clicked_deadline_info()) {
+          return()  # Ignore duplicate clicks
+        }
+        last_clicked_deadline_info(current_info)
+        
+        if (info$row <= nrow(data)) {
+          
+          # Get the clicked deadline kleur
+          selected_deadline <- data[info$row, ]
+          
+          cli_alert_info("Deadline kleuren table row clicked for: {selected_deadline$id}")
+          show_edit_deadline_kleur_modal(selected_deadline)
+        }
+      }
+    })
+    
+    # Show edit deadline kleur modal
+    show_edit_deadline_kleur_modal <- function(deadline_data) {
+      showModal(modalDialog(
+        title = paste("Deadline Kleur Bewerken:", deadline_data$beschrijving),
+        size = "m",
+        easyClose = FALSE,
+        
+        div(
+          textInput(
+            session$ns("edit_deadline_beschrijving"),
+            "Beschrijving:",
+            value = deadline_data$beschrijving
+          ),
+          
+          textInput(
+            session$ns("edit_deadline_dagen_voor"),
+            "Van (dagen) - laat leeg voor alles ervoor:",
+            value = ifelse(is.na(deadline_data$dagen_voor), "", as.character(deadline_data$dagen_voor)),
+            placeholder = "bijv. -7 (week voor deadline)"
+          ),
+          
+          textInput(
+            session$ns("edit_deadline_dagen_tot"),
+            "Tot (dagen) - laat leeg voor alles erna:",
+            value = ifelse(is.na(deadline_data$dagen_tot), "", as.character(deadline_data$dagen_tot)),
+            placeholder = "bijv. 7 (week na deadline)"
+          ),
+          
+          colourpicker::colourInput(
+            session$ns("edit_deadline_kleur"),
+            "Kleur:",
+            value = deadline_data$kleur,
+            showColour = "both"
+          ),
+          
+          
+          checkboxInput(
+            session$ns("edit_deadline_actief"),
+            "Actief",
+            value = deadline_data$actief == 1
+          ),
+          
+          div(
+            class = "alert alert-info mt-3",
+            icon("info-circle"), " ",
+            strong("Tip: "), "Ranges mogen niet overlappen.",
+            br(),
+            "• Negatieve getallen = dagen VÓÓR de deadline (deadline komt nog)",
+            br(), 
+            "• Positieve getallen = dagen NÁ de deadline (deadline is verstreken)",
+            br(),
+            "• 0 = vandaag is de deadline",
+            br(),
+            "• Laat velden leeg voor onbeperkte ranges (∞)"
+          ),
+          
+          # Hidden field to store the ID
+          div(style = "display: none;",
+              textInput(session$ns("edit_deadline_id"), "", value = deadline_data$id)
+          )
+        ),
+        
+        footer = div(
+          actionButton(
+            session$ns("btn_edit_deadline_cancel"),
+            "Annuleren",
+            class = "btn-outline-secondary"
+          ),
+          actionButton(
+            session$ns("btn_edit_deadline_save"),
+            "Bijwerken",
+            class = "btn-primary ms-2"
+          )
+        )
+      ))
+    }
+    
+    # Add new deadline kleur
+    observeEvent(input$btn_add_deadline_kleur, {
+      req(is_admin())
+      
+      showModal(modalDialog(
+        title = "Nieuwe Deadline Kleurrange",
+        size = "m",
+        easyClose = FALSE,
+        
+        div(
+          textInput(
+            session$ns("new_deadline_beschrijving"),
+            "Beschrijving:",
+            placeholder = "bijv. 'Kritiek - binnen een week'"
+          ),
+          
+          textInput(
+            session$ns("new_deadline_dagen_voor"),
+            "Van (dagen) - laat leeg voor alles ervoor:",
+            value = "-7",
+            placeholder = "bijv. -7 (week voor deadline)"
+          ),
+          
+          textInput(
+            session$ns("new_deadline_dagen_tot"),
+            "Tot (dagen) - laat leeg voor alles erna:",
+            value = "-1",
+            placeholder = "bijv. 7 (week na deadline)"
+          ),
+          
+          colourpicker::colourInput(
+            session$ns("new_deadline_kleur"),
+            "Kleur:",
+            value = "#ffc107",
+            showColour = "both"
+          ),
+          
+          
+          div(
+            class = "alert alert-info mt-3",
+            icon("info-circle"), " ",
+            strong("Tip: "), "Ranges mogen niet overlappen.",
+            br(),
+            "• Negatieve getallen = dagen VÓÓR de deadline (deadline komt nog)",
+            br(), 
+            "• Positieve getallen = dagen NÁ de deadline (deadline is verstreken)",
+            br(),
+            "• 0 = vandaag is de deadline",
+            br(),
+            "• Laat velden leeg voor onbeperkte ranges (∞)"
+          )
+        ),
+        
+        footer = div(
+          actionButton(
+            session$ns("btn_deadline_kleur_cancel"),
+            "Annuleren",
+            class = "btn-outline-secondary"
+          ),
+          actionButton(
+            session$ns("btn_deadline_kleur_save"),
+            "Opslaan",
+            class = "btn-primary ms-2"
+          )
+        )
+      ))
+    })
+    
+    # Save new deadline kleur
+    observeEvent(input$btn_deadline_kleur_save, {
+      req(is_admin())
+      
+      tryCatch({
+        # Convert text input to appropriate format
+        dagen_voor <- input$new_deadline_dagen_voor
+        dagen_tot <- input$new_deadline_dagen_tot
+        
+        # Convert to numeric if not empty (empty = infinite)
+        if (trimws(dagen_voor) != "") {
+          dagen_voor <- as.numeric(dagen_voor)
+          if (is.na(dagen_voor)) {
+            show_notification("'Van (dagen)' moet een getal zijn of leeg voor oneindig", type = "warning")
+            return()
+          }
+        }
+        
+        if (trimws(dagen_tot) != "") {
+          dagen_tot <- as.numeric(dagen_tot)
+          if (is.na(dagen_tot)) {
+            show_notification("'Tot (dagen)' moet een getal zijn of leeg voor oneindig", type = "warning")
+            return()
+          }
+        }
+        
+        voeg_deadline_kleur_toe(
+          dagen_voor = dagen_voor,
+          dagen_tot = dagen_tot,
+          beschrijving = input$new_deadline_beschrijving,
+          kleur = input$new_deadline_kleur,
+          gebruiker = current_user()
+        )
+        
+        cli_alert_success("Deadline kleur added successfully")
+        show_notification("Deadline kleur toegevoegd", type = "message")
+        
+        # Refresh table
+        deadline_kleuren_refresh(deadline_kleuren_refresh() + 1)
+        
+        # Close modal
+        removeModal()
+        
+      }, error = function(e) {
+        cli_alert_danger("Error adding deadline kleur: {e$message}")
+        show_notification(paste("Fout bij toevoegen deadline kleur:", e$message), type = "error")
+      })
+    })
+    
+    # Save edited deadline kleur
+    observeEvent(input$btn_edit_deadline_save, {
+      req(is_admin())
+      req(input$edit_deadline_id)
+      
+      tryCatch({
+        # Convert text input to appropriate format
+        dagen_voor <- input$edit_deadline_dagen_voor
+        dagen_tot <- input$edit_deadline_dagen_tot
+        
+        # Convert to numeric if not empty (empty = infinite)
+        if (trimws(dagen_voor) != "") {
+          dagen_voor <- as.numeric(dagen_voor)
+          if (is.na(dagen_voor)) {
+            show_notification("'Van (dagen)' moet een getal zijn of leeg voor oneindig", type = "warning")
+            return()
+          }
+        }
+        
+        if (trimws(dagen_tot) != "") {
+          dagen_tot <- as.numeric(dagen_tot)
+          if (is.na(dagen_tot)) {
+            show_notification("'Tot (dagen)' moet een getal zijn of leeg voor oneindig", type = "warning")
+            return()
+          }
+        }
+        
+        update_deadline_kleur(
+          id = as.numeric(input$edit_deadline_id),
+          dagen_voor = dagen_voor,
+          dagen_tot = dagen_tot,
+          beschrijving = input$edit_deadline_beschrijving,
+          kleur = input$edit_deadline_kleur,
+          gebruiker = current_user()
+        )
+        
+        cli_alert_success("Deadline kleur updated successfully")
+        show_notification("Deadline kleur bijgewerkt", type = "message")
+        
+        # Refresh table
+        deadline_kleuren_refresh(deadline_kleuren_refresh() + 1)
+        
+        # Close modal
+        removeModal()
+        
+      }, error = function(e) {
+        cli_alert_danger("Error updating deadline kleur: {e$message}")
+        show_notification(paste("Fout bij bijwerken deadline kleur:", e$message), type = "error")
+      })
+    })
+    
+    # Cancel edit deadline kleur
+    observeEvent(input$btn_edit_deadline_cancel, {
+      removeModal()
+    })
+    
+    # Cancel deadline kleur modal
+    observeEvent(input$btn_deadline_kleur_cancel, {
+      removeModal()
+    })
+    
+    # Delete deadline kleur
+    observeEvent(input$delete_deadline_kleur_id, {
+      req(is_admin())
+      req(input$delete_deadline_kleur_id)
+      
+      showModal(modalDialog(
+        title = "Deadline Kleur Verwijderen",
+        "Weet je zeker dat je deze deadline kleur wilt verwijderen?",
+        footer = div(
+          actionButton(
+            session$ns("btn_confirm_delete_deadline_kleur"),
+            "Verwijderen",
+            class = "btn-danger"
+          ),
+          actionButton(
+            session$ns("btn_cancel_delete_deadline_kleur"),
+            "Annuleren",
+            class = "btn-outline-secondary ms-2"
+          )
+        )
+      ))
+    })
+    
+    # Confirm delete deadline kleur
+    observeEvent(input$btn_confirm_delete_deadline_kleur, {
+      req(input$delete_deadline_kleur_id)
+      
+      tryCatch({
+        verwijder_deadline_kleur(input$delete_deadline_kleur_id)
+        
+        cli_alert_success("Deadline kleur deleted successfully")
+        show_notification("Deadline kleur verwijderd", type = "message")
+        
+        # Refresh table
+        deadline_kleuren_refresh(deadline_kleuren_refresh() + 1)
+        
+        # Close modal
+        removeModal()
+        
+      }, error = function(e) {
+        cli_alert_danger("Error deleting deadline kleur: {e$message}")
+        show_notification("Fout bij verwijderen deadline kleur", type = "error")
+      })
+    })
+    
+    # Cancel delete deadline kleur
+    observeEvent(input$btn_cancel_delete_deadline_kleur, {
+      removeModal()
+    })
+    
+    # ========================================================================
     # RETURN VALUES
     # ========================================================================
     

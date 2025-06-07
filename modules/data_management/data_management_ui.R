@@ -16,19 +16,13 @@ data_management_ui <- function(id) {
   tagList(
     
     # ==========================================================================
-    # PAGE HEADER
+    # ACTION BUTTONS
     # ==========================================================================
     
     div(
-      class = "d-flex justify-content-between align-items-center mb-4",
+      class = "d-flex justify-content-end mb-4",
       
-      # Title section
-      div(
-        h1("Zaakbeheer", class = "mb-1"),
-        p("Overzicht van alle zaken van de landsadvocaat", class = "text-muted mb-0")
-      ),
-      
-      # Action buttons (placeholder for now)
+      # Action buttons
       div(
         class = "btn-group",
         actionButton(
@@ -45,8 +39,8 @@ data_management_ui <- function(id) {
         ),
         actionButton(
           ns("btn_refresh"),
-          "Ververs",
-          class = "btn-outline-secondary",
+          "Ververs Data",
+          class = "btn-outline-primary",
           icon = icon("sync-alt")
         )
       )
@@ -119,7 +113,7 @@ data_management_ui <- function(id) {
         # Table title
         div(
           h5("Zaken Overzicht", class = "mb-0"),
-          div(class = "small text-muted", "Klik op een zaak voor details, dubbelklik om te bewerken")
+          div(class = "small text-muted", "Klik op een zaak voor details en om te bewerken")
         ),
         
         # Simple status indicator

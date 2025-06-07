@@ -965,3 +965,155 @@ get_dropdown_kleuren <- function(categorie = NULL, con = NULL) {
   
   return(result)
 }
+
+# =============================================================================
+# DEADLINE KLEUREN BEHEER
+# =============================================================================
+
+#' Haal deadline kleuren configuratie op
+get_deadline_kleuren <- function() {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  result <- DBI::dbGetQuery(con, "
+    SELECT * FROM deadline_kleuren 
+    WHERE actief = 1 
+    ORDER BY 
+      CASE WHEN dagen_voor IS NULL THEN -999999 ELSE dagen_voor END ASC
+  ")
+  
+  return(result)
+}
+
+#' Valideer dat nieuwe range niet overlapt met bestaande ranges
+valideer_deadline_range <- function(dagen_voor, dagen_tot, exclude_id = NULL) {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  # Convert empty strings to NA
+  if (!is.null(dagen_voor) && is.character(dagen_voor) && trimws(dagen_voor) == "") {
+    dagen_voor <- NA
+  }
+  if (!is.null(dagen_tot) && is.character(dagen_tot) && trimws(dagen_tot) == "") {
+    dagen_tot <- NA
+  }
+  
+  # Convert NA to infinite values for comparison
+  van <- ifelse(is.na(dagen_voor), -999999, as.numeric(dagen_voor))
+  tot <- ifelse(is.na(dagen_tot), 999999, as.numeric(dagen_tot))
+  
+  # Check if range is valid (van <= tot)
+  if (van > tot) {
+    return(list(valid = FALSE, message = "Ongeldige range: 'dagen voor' moet kleiner of gelijk zijn aan 'dagen tot'"))
+  }
+  
+  # Get existing ranges (exclude current if updating)
+  if (!is.null(exclude_id)) {
+    existing_ranges <- DBI::dbGetQuery(con, "
+      SELECT id, dagen_voor, dagen_tot, beschrijving FROM deadline_kleuren 
+      WHERE actief = 1 AND id != ?
+    ", params = list(exclude_id))
+  } else {
+    existing_ranges <- DBI::dbGetQuery(con, "
+      SELECT id, dagen_voor, dagen_tot, beschrijving FROM deadline_kleuren 
+      WHERE actief = 1
+    ")
+  }
+  
+  # Check for overlaps with existing ranges
+  for (i in 1:nrow(existing_ranges)) {
+    row <- existing_ranges[i, ]
+    existing_van <- ifelse(is.na(row$dagen_voor), -999999, row$dagen_voor)
+    existing_tot <- ifelse(is.na(row$dagen_tot), 999999, row$dagen_tot)
+    
+    # Check if ranges overlap: new range overlaps if it starts before existing ends AND ends after existing starts
+    if (van <= existing_tot && tot >= existing_van) {
+      return(list(valid = FALSE, message = paste0("Range overlapt met bestaande range: '", row$beschrijving, "'")))
+    }
+  }
+  
+  return(list(valid = TRUE, message = ""))
+}
+
+#' Voeg nieuwe deadline kleur range toe
+voeg_deadline_kleur_toe <- function(dagen_voor, dagen_tot, beschrijving, kleur, gebruiker) {
+  # Valideer range
+  validatie <- valideer_deadline_range(dagen_voor, dagen_tot)
+  if (!validatie$valid) {
+    stop(validatie$message)
+  }
+  
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  # Convert empty strings to NA for database storage (infinite ranges)
+  if (!is.null(dagen_voor) && is.character(dagen_voor) && trimws(dagen_voor) == "") {
+    dagen_voor <- NA
+  }
+  if (!is.null(dagen_tot) && is.character(dagen_tot) && trimws(dagen_tot) == "") {
+    dagen_tot <- NA
+  }
+  
+  DBI::dbExecute(con, "
+    INSERT INTO deadline_kleuren (dagen_voor, dagen_tot, beschrijving, kleur, actief, aangemaakt_door, aangemaakt_op) 
+    VALUES (?, ?, ?, ?, 1, ?, datetime('now'))
+  ", params = list(dagen_voor, dagen_tot, beschrijving, kleur, gebruiker))
+}
+
+#' Update deadline kleur
+update_deadline_kleur <- function(id, dagen_voor, dagen_tot, beschrijving, kleur, gebruiker) {
+  # Valideer range (exclude current record from overlap check)
+  validatie <- valideer_deadline_range(dagen_voor, dagen_tot, exclude_id = id)
+  if (!validatie$valid) {
+    stop(validatie$message)
+  }
+  
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  # Convert empty strings to NA for database storage (infinite ranges)
+  if (!is.null(dagen_voor) && is.character(dagen_voor) && trimws(dagen_voor) == "") {
+    dagen_voor <- NA
+  }
+  if (!is.null(dagen_tot) && is.character(dagen_tot) && trimws(dagen_tot) == "") {
+    dagen_tot <- NA
+  }
+  
+  DBI::dbExecute(con, "
+    UPDATE deadline_kleuren 
+    SET dagen_voor = ?, dagen_tot = ?, beschrijving = ?, kleur = ?, 
+        gewijzigd_door = ?, laatst_gewijzigd = datetime('now')
+    WHERE id = ?
+  ", params = list(dagen_voor, dagen_tot, beschrijving, kleur, gebruiker, id))
+}
+
+#' Verwijder deadline kleur
+verwijder_deadline_kleur <- function(id) {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  DBI::dbExecute(con, "
+    UPDATE deadline_kleuren SET actief = 0 WHERE id = ?
+  ", params = list(id))
+}
+
+#' Bepaal kleur voor een deadline op basis van dagen tot deadline
+get_deadline_kleur <- function(dagen_tot_deadline) {
+  if (is.na(dagen_tot_deadline)) return("transparent")
+  
+  kleuren_config <- get_deadline_kleuren()
+  
+  for (i in 1:nrow(kleuren_config)) {
+    range_row <- kleuren_config[i, ]
+    
+    # Handle infinite ranges (NULL values)
+    dagen_voor <- ifelse(is.na(range_row$dagen_voor), -Inf, range_row$dagen_voor)
+    dagen_tot <- ifelse(is.na(range_row$dagen_tot), Inf, range_row$dagen_tot)
+    
+    if (dagen_tot_deadline >= dagen_voor && dagen_tot_deadline <= dagen_tot) {
+      return(range_row$kleur)
+    }
+  }
+  
+  return("transparent")  # Default kleur als geen range matched
+}
