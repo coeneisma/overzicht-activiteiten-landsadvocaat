@@ -445,35 +445,72 @@ get_weergave_naam_cached()           # I.p.v. get_weergave_naam()
 bulk_get_weergave_namen()            # Voor bulk conversies
 ```
 
+## ✅ VOLTOOIDE FEATURES
+
+### **🔄 Zaakaanduiding Implementatie** ✅ VOLTOOID
+- ✅ **Database**: 'Omschrijving' kolom verwijderd, alleen 'Zaakaanduiding' gebruikt
+- ✅ **Formulieren**: Alle nieuwe/bewerk formulieren gebruiken 'Zaakaanduiding'
+- ✅ **UI Labels**: Overal 'Omschrijving' vervangen door 'Zaakaanduiding'
+- ✅ **Database Migration**: 74 zaken succesvol gemigreerd
+- ✅ **CRUD Operations**: Alle operaties aangepast voor Zaakaanduiding
+- ✅ **Filter Module**: Search werkt met zaakaanduiding
+- ✅ **Excel Exports**: Alle exports gebruiken 'Zaakaanduiding' kolom
+- ✅ **Details Modal**: Toont zaakaanduiding informatie
+
+### **🔀 Kolom Volgorde Functionaliteit** ✅ VOLTOOID
+- ✅ **Database**: `volgorde` kolom toegevoegd aan `gebruiker_kolom_instellingen`
+- ✅ **Helper Functies**: Alle database functies ondersteunen volgorde
+- ✅ **Bucket List UI**: Drag & drop interface geïmplementeerd met `sortable` package
+- ✅ **Reset Functionaliteit**: Werkt correct met standaard volgorde
+- ✅ **Data Extractie Fix**: Bucket list data wordt correct uitgelezen via `input$zichtbare_kolommen` values
+- ✅ **User Experience**: Schone Nederlandse labels zonder database variabele namen
+
+#### **✅ OPGELOSTE ISSUES - Kolom Volgorde:**
+
+**Probleem Opgelost:**
+- Bucket list event handler extract nu correct de kolom ID's uit `as.character(input$zichtbare_kolommen)` (values) i.p.v. `names()`
+- UI toont alleen Nederlandse labels zonder technische database namen
+
+**Werkende Functionaliteit:**
+```r
+# Database functies (✅ VOLLEDIG WERKEND):
+get_zichtbare_kolommen(gebruiker_id)  # Respecteert volgorde
+update_gebruiker_kolom_instellingen_bulk(user_id, kolommen_array)
+get_gebruiker_kolom_instellingen(user_id)  # Geeft zichtbaar + volgorde
+
+# UI implementatie (✅ VOLLEDIG WERKEND):
+bucket_list() met add_rank_list()  # Drag & drop werkt perfect
+observeEvent(input$zichtbare_kolommen)  # Data extractie werkt via values
+```
+
+**Standaard Volgorde (aangepast):**
+1. Zaak ID (altijd eerste)
+2. Datum Aanmaak  
+3. Looptijd
+4. Aanvragende Directies
+5. Zaakaanduiding
+6. Type Dienst
+7. Rechtsgebied
+8. Status
+9. *(Laatst Gewijzigd verwijderd uit standaard)*
+
 ## 🔮 VOLGENDE PRIORITEITEN
 
 ### **Hoge Prioriteit:**
-1. **🔄 Zaakaanduiding implementatie** - VOLGENDE SESSIE
-   - Vervang 'Omschrijving' met 'Zaakaanduiding' in alle formulieren
-   - Verwijder 'Omschrijving' kolom uit database
-   - Update alle CRUD operaties om Zaakaanduiding te gebruiken
-   - Migreer bestaande data indien nodig
-
-2. **🔀 Kolom volgorde aanpassen** - VOLGENDE SESSIE
-   - Uitbreiding van bestaande kolom zichtbaarheid functionaliteit
-   - Gebruikers kunnen kolom volgorde bepalen via drag & drop of move up/down
-   - Zaak ID blijft altijd eerste kolom
-   - Volgorde wordt opgeslagen in `gebruiker_kolom_instellingen` tabel (nieuwe kolom: `volgorde`)
-
-### **Medium Prioriteit:**
-3. **Analyse Module Optimalisatie** ⏱️
+1. **Analyse Module Optimalisatie** ⏱️
    - Analyse tabblad laadt nog traag
    - Implementeer lazy loading en caching voor analysis_data
    - Debounce chart updates
    - Conditional rendering van charts
 
-3. **Real-time UI Updates** 🔄
+### **Medium Prioriteit:**
+2. **Real-time UI Updates** 🔄
    - Instellingen wijzigingen (deadline kleuren) moeten direct zichtbaar zijn in zaak tabel
    - Implementeer reactive color updates zonder volledige data refresh
    - Smart partial table updates
 
 ### **Lage Prioriteit:**
-4. **Advanced Deadline Features**
+3. **Advanced Deadline Features**
    - Email notificaties voor deadlines
    - Dashboard widgets voor deadline overzicht
    - Deadline export naar kalender formaten

@@ -1921,14 +1921,14 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
     })
     
     # ========================================================================
-    # KOLOM ZICHTBAARHEID MANAGEMENT
+    # KOLOM ZICHTBAARHEID MANAGEMENT (BUCKET LIST)
     # ========================================================================
     
     # Kolom instellingen refresh trigger
     kolom_instellingen_refresh <- reactiveVal(0)
     
-    # Render dynamische kolom checkboxes
-    output$kolommen_container <- renderUI({
+    # Render bucket list voor kolom volgorde
+    output$kolom_bucket_list <- renderUI({
       kolom_instellingen_refresh()  # Trigger refresh
       
       req(current_user())
@@ -1948,94 +1948,120 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         
         # Haal beschikbare kolommen en huidige instellingen op
         beschikbare_kolommen <- get_beschikbare_kolommen()
-        huidige_instellingen <- get_gebruiker_kolom_instellingen(gebruiker_id)
+        instellingen <- get_gebruiker_kolom_instellingen(gebruiker_id)
         
-        # Default zichtbare kolommen
-        default_zichtbaar <- c(
-          "status_zaak", "type_dienst", "rechtsgebied", "omschrijving", 
-          "directies", "datum_aanmaak", "laatst_gewijzigd"
+        # Default standaard volgorde (aangepast: laatst_gewijzigd eruit, rechtsgebied voor status)
+        default_zichtbaar_geordend <- c(
+          "datum_aanmaak", "looptijd", "directies", "zaakaanduiding", 
+          "type_dienst", "rechtsgebied", "status_zaak"
         )
         
-        # Genereer checkboxes voor alle beschikbare kolommen
-        checkbox_list <- lapply(names(beschikbare_kolommen), function(kolom_naam) {
-          # Bepaal of kolom zichtbaar is
-          if (kolom_naam %in% names(huidige_instellingen)) {
-            checked <- huidige_instellingen[[kolom_naam]]
-          } else {
-            checked <- kolom_naam %in% default_zichtbaar
-          }
+        # Bepaal huidige zichtbare kolommen (geordend op volgorde)
+        if (length(instellingen$zichtbaar) > 0 && any(instellingen$zichtbaar)) {
+          # Gebruiker heeft instellingen en er zijn zichtbare kolommen
+          zichtbare_kolommen <- names(instellingen$zichtbaar)[instellingen$zichtbaar]
           
-          div(
-            class = "form-check mb-2",
-            checkboxInput(
-              session$ns(paste0("kolom_", kolom_naam)),
-              beschikbare_kolommen[[kolom_naam]],
-              value = checked
+          # Sorteer op volgorde
+          if (length(zichtbare_kolommen) > 0) {
+            zichtbare_met_volgorde <- data.frame(
+              kolom = zichtbare_kolommen,
+              volgorde = sapply(zichtbare_kolommen, function(k) {
+                instellingen$volgorde[[k]]
+              }),
+              stringsAsFactors = FALSE
             )
-          )
-        })
+            zichtbare_kolommen <- zichtbare_met_volgorde[order(zichtbare_met_volgorde$volgorde), "kolom"]
+          }
+        } else {
+          # Geen instellingen of geen zichtbare kolommen, gebruik default
+          zichtbare_kolommen <- default_zichtbaar_geordend
+        }
         
-        return(tagList(checkbox_list))
+        # Bepaal niet-zichtbare kolommen
+        alle_kolommen <- names(beschikbare_kolommen)
+        niet_zichtbare_kolommen <- alle_kolommen[!alle_kolommen %in% zichtbare_kolommen]
+        
+        # Voor sortable package: gebruik alleen Nederlandse namen
+        # Zichtbare kolommen met alleen Nederlandse namen
+        zichtbare_items <- setNames(
+          beschikbare_kolommen[zichtbare_kolommen],
+          zichtbare_kolommen
+        )
+        
+        # Niet-zichtbare kolommen met alleen Nederlandse namen  
+        niet_zichtbare_items <- setNames(
+          beschikbare_kolommen[niet_zichtbare_kolommen],
+          niet_zichtbare_kolommen
+        )
+        
+        # Bucket list
+        bucket_list(
+          header = "Sleep kolommen om zichtbaarheid en volgorde aan te passen:",
+          group_name = "kolom_buckets",
+          orientation = "horizontal",
+          
+          add_rank_list(
+            text = "Beschikbare kolommen",
+            labels = niet_zichtbare_items,
+            input_id = session$ns("beschikbare_kolommen")
+          ),
+          
+          add_rank_list(
+            text = "Zichtbare kolommen (op volgorde)",
+            labels = zichtbare_items,
+            input_id = session$ns("zichtbare_kolommen")
+          )
+        )
         
       }, error = function(e) {
-        cli_alert_danger("Error loading kolom instellingen: {e$message}")
-        return(NULL)
+        cli_alert_danger("Error loading kolom bucket list: {e$message}")
+        return(div(class = "alert alert-danger", "Fout bij laden kolom instellingen"))
       })
     })
     
-    # Observeer kolom checkbox changes en update database
-    # Create observers for each checkbox
-    beschikbare_kolommen <- get_beschikbare_kolommen()
-    
-    for (kolom_naam in names(beschikbare_kolommen)) {
-      local({
-        current_kolom <- kolom_naam
-        input_name <- paste0("kolom_", current_kolom)
+    # Observeer bucket list changes
+    observeEvent(input$zichtbare_kolommen, {
+      req(current_user())
+      
+      tryCatch({
+        con <- get_db_connection()
+        on.exit(close_db_connection(con))
         
-        observeEvent(input[[input_name]], {
-          req(!is.null(input[[input_name]]))
-          req(current_user())
-          
-          # Get user ID fresh each time
-          tryCatch({
-            con <- get_db_connection()
-            on.exit(close_db_connection(con))
-            
-            gebruiker <- DBI::dbGetQuery(con, "
-              SELECT gebruiker_id FROM gebruikers WHERE gebruikersnaam = ?
-            ", params = list(current_user()))
-            
-            if (nrow(gebruiker) == 0) {
-              cli_alert_danger("Gebruiker niet gevonden")
-              return()
-            }
-            
-            gebruiker_id <- gebruiker$gebruiker_id[1]
-            
-            # Update database
-            update_gebruiker_kolom_instelling(
-              gebruiker_id = gebruiker_id,
-              kolom_naam = current_kolom,
-              zichtbaar = input[[input_name]]
-            )
-            
-            cli_alert_success("Kolom '{current_kolom}' zichtbaarheid bijgewerkt naar {input[[input_name]]}")
-            
-            # Clear dropdown cache to force refresh
-            clear_dropdown_cache()
-            
-            # Trigger refresh in zaakbeheer (als er een trigger is)
-            if (!is.null(global_dropdown_refresh_trigger)) {
-              cli_alert_info("Triggering global refresh...")
-              global_dropdown_refresh_trigger(global_dropdown_refresh_trigger() + 1)
-            }
-            
-          }, error = function(e) {
-            cli_alert_danger("Error updating kolom instelling: {e$message}")
-          })
-        }, ignoreInit = TRUE)
+        gebruiker <- DBI::dbGetQuery(con, "
+          SELECT gebruiker_id FROM gebruikers WHERE gebruikersnaam = ?
+        ", params = list(current_user()))
+        
+        if (nrow(gebruiker) == 0) return()
+        
+        gebruiker_id <- gebruiker$gebruiker_id[1]
+        
+        # Extract kolom names from bucket list 
+        # sortable package geeft de VALUES terug als kolom ID's, niet de names
+        if (is.null(input$zichtbare_kolommen)) {
+          zichtbare_kolommen_geordend <- character(0)
+        } else {
+          # De VALUES zijn onze kolom ID's (niet names)
+          zichtbare_kolommen_geordend <- as.character(input$zichtbare_kolommen)
+        }
+        
+        cli_alert_info("Updating column settings for user {gebruiker_id}")
+        cli_alert_info("Visible columns (ordered): {paste(zichtbare_kolommen_geordend, collapse = ', ')}")
+        
+        # Bulk update database (ook met lege lijst)
+        update_gebruiker_kolom_instellingen_bulk(gebruiker_id, zichtbare_kolommen_geordend)
+        
+        cli_alert_success("Column settings updated successfully")
+        
+        # Clear cache and trigger refresh
+        clear_dropdown_cache()
+        if (!is.null(global_dropdown_refresh_trigger)) {
+          global_dropdown_refresh_trigger(global_dropdown_refresh_trigger() + 1)
+        }
+        
+      }, error = function(e) {
+        cli_alert_danger("Error updating column settings: {e$message}")
       })
-    }
+    }, ignoreInit = TRUE)
     
     # Reset naar standaard instellingen
     observeEvent(input$btn_reset_kolommen, {
@@ -2057,6 +2083,15 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         DBI::dbExecute(con, "
           DELETE FROM gebruiker_kolom_instellingen WHERE gebruiker_id = ?
         ", params = list(gebruiker_id))
+        
+        # Voeg standaard instellingen toe met correcte volgorde
+        default_zichtbaar_geordend <- c(
+          "datum_aanmaak", "looptijd", "directies", "zaakaanduiding", 
+          "type_dienst", "rechtsgebied", "status_zaak"
+        )
+        
+        # Bulk update met standaard volgorde
+        update_gebruiker_kolom_instellingen_bulk(gebruiker_id, default_zichtbaar_geordend)
         
         # Trigger refresh
         kolom_instellingen_refresh(kolom_instellingen_refresh() + 1)
@@ -2119,33 +2154,16 @@ kolom_zichtbaarheid_tab_ui <- function(ns) {
     div(
       class = "alert alert-info mb-3",
       icon("info-circle"), " ",
-      strong("Tip: "), "Bepaal welke kolommen zichtbaar zijn in de zaakbeheer tabel. ",
-      "De kolom 'Zaak ID' is altijd zichtbaar. Uw instellingen worden automatisch opgeslagen."
+      strong("Tip: "), "Sleep kolommen tussen de vakken om zichtbaarheid en volgorde aan te passen. ",
+      "De kolom 'Zaak ID' blijft altijd eerste. Uw instellingen worden automatisch opgeslagen."
     ),
     
-    # Kolom instellingen
+    # Bucket list voor kolom volgorde
     div(
       class = "card",
       div(
-        class = "card-header",
-        h5("Beschikbare Kolommen", class = "mb-0")
-      ),
-      div(
         class = "card-body",
-        
-        # Zaak ID (altijd zichtbaar)
-        div(
-          class = "form-check mb-2 p-2 bg-light rounded",
-          checkboxInput(
-            ns("kolom_zaak_id"),
-            "Zaak ID (altijd zichtbaar)",
-            value = TRUE
-          ),
-          tags$script(paste0("$('#", ns("kolom_zaak_id"), "').prop('disabled', true);"))
-        ),
-        
-        # Dynamische kolommen
-        uiOutput(ns("kolommen_container"))
+        uiOutput(ns("kolom_bucket_list"))
       )
     )
   )
