@@ -155,13 +155,13 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
       # Apply filters step by step
       filtered <- data
       
-      # Text search in zaak_id and omschrijving
+      # Text search in zaak_id and zaakaanduiding
       if (!is.null(input$search_text) && !is.na(input$search_text) && nchar(input$search_text) > 0) {
         search_term <- tolower(input$search_text)
         filtered <- filtered %>%
           filter(
             grepl(search_term, tolower(ifelse(is.na(zaak_id), "", zaak_id)), fixed = TRUE) |
-              grepl(search_term, tolower(ifelse(is.na(omschrijving), "", omschrijving)), fixed = TRUE)
+              grepl(search_term, tolower(ifelse(is.na(zaakaanduiding), "", zaakaanduiding)), fixed = TRUE)
           )
       }
       
@@ -332,7 +332,7 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
           select(
             "Zaak ID" = zaak_id,
             "Datum" = datum_aanmaak,
-            "Omschrijving" = omschrijving,
+            "Zaakaanduiding" = zaakaanduiding,
             "Type Dienst" = type_dienst,
             "Rechtsgebied" = rechtsgebied,
             "Status" = status_zaak,

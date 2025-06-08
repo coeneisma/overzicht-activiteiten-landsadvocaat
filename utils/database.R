@@ -101,7 +101,6 @@ setup_database <- function(db_path = DB_PATH) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       zaak_id TEXT UNIQUE NOT NULL,
       datum_aanmaak DATE NOT NULL,
-      omschrijving TEXT,
       zaakaanduiding TEXT,
       
       -- Classificatie velden
@@ -737,7 +736,7 @@ get_zaken_met_directies_optimized <- function() {
     LEFT JOIN dropdown_opties do ON zd.directie = do.waarde 
                                  AND do.categorie = 'aanvragende_directie'
                                  AND do.actief = 1
-    GROUP BY z.zaak_id, z.datum_aanmaak, z.omschrijving, z.zaakaanduiding,
+    GROUP BY z.zaak_id, z.datum_aanmaak, z.zaakaanduiding,
              z.type_dienst, z.type_procedure, z.rechtsgebied, z.hoedanigheid_partij,
              z.type_wederpartij, z.reden_inzet, z.civiel_bestuursrecht, z.aansprakelijkheid,
              z.aanvragende_directie, z.proza_link, z.wjz_mt_lid, z.la_budget_wjz,
@@ -1131,6 +1130,60 @@ tbl_gebruiker_kolom_instellingen <- function(con = NULL) {
   return(tbl(con, "gebruiker_kolom_instellingen"))
 }
 
+#' Update alle kolom instellingen voor gebruiker (bulk operatie voor bucket list)
+update_gebruiker_kolom_instellingen_bulk <- function(gebruiker_id, zichtbare_kolommen_geordend) {
+  con <- get_db_connection()
+  on.exit(close_db_connection(con))
+  
+  tryCatch({
+    dbBegin(con)
+    
+    # Haal alle beschikbare kolommen op
+    alle_kolommen <- names(get_beschikbare_kolommen())
+    
+    # Loop door alle kolommen
+    for (kolom in alle_kolommen) {
+      if (length(zichtbare_kolommen_geordend) > 0 && kolom %in% zichtbare_kolommen_geordend) {
+        # Kolom is zichtbaar - bepaal volgorde
+        volgorde <- which(zichtbare_kolommen_geordend == kolom)
+        zichtbaar <- 1
+      } else {
+        # Kolom is niet zichtbaar
+        volgorde <- 999
+        zichtbaar <- 0
+      }
+      
+      # Check of record bestaat
+      existing <- dbGetQuery(con, "
+        SELECT id FROM gebruiker_kolom_instellingen 
+        WHERE gebruiker_id = ? AND kolom_naam = ?
+      ", params = list(gebruiker_id, kolom))
+      
+      if (nrow(existing) > 0) {
+        # Update
+        dbExecute(con, "
+          UPDATE gebruiker_kolom_instellingen 
+          SET zichtbaar = ?, volgorde = ?
+          WHERE gebruiker_id = ? AND kolom_naam = ?
+        ", params = list(zichtbaar, volgorde, gebruiker_id, kolom))
+      } else {
+        # Insert
+        dbExecute(con, "
+          INSERT INTO gebruiker_kolom_instellingen (gebruiker_id, kolom_naam, zichtbaar, volgorde)
+          VALUES (?, ?, ?, ?)
+        ", params = list(gebruiker_id, kolom, zichtbaar, volgorde))
+      }
+    }
+    
+    dbCommit(con)
+    return(TRUE)
+    
+  }, error = function(e) {
+    dbRollback(con)
+    stop("Error updating column settings: ", e$message)
+  })
+}
+
 #' Haal kolom zichtbaarheid instellingen voor gebruiker op
 get_gebruiker_kolom_instellingen <- function(gebruiker_id) {
   con <- get_db_connection()
@@ -1138,17 +1191,24 @@ get_gebruiker_kolom_instellingen <- function(gebruiker_id) {
   
   result <- tbl_gebruiker_kolom_instellingen(con) %>%
     filter(gebruiker_id == !!gebruiker_id) %>%
-    select(kolom_naam, zichtbaar) %>%
+    select(kolom_naam, zichtbaar, volgorde) %>%
     collect()
   
-  # Converteer naar named list voor makkelijke lookup
-  instellingen <- setNames(as.logical(result$zichtbaar), result$kolom_naam)
+  # Converteer naar named list voor makkelijke lookup (met volgorde info)
+  if (nrow(result) > 0) {
+    instellingen <- list(
+      zichtbaar = setNames(as.logical(result$zichtbaar), result$kolom_naam),
+      volgorde = setNames(result$volgorde, result$kolom_naam)
+    )
+  } else {
+    instellingen <- list(zichtbaar = list(), volgorde = list())
+  }
   
   return(instellingen)
 }
 
 #' Update kolom zichtbaarheid voor gebruiker
-update_gebruiker_kolom_instelling <- function(gebruiker_id, kolom_naam, zichtbaar) {
+update_gebruiker_kolom_instelling <- function(gebruiker_id, kolom_naam, zichtbaar, volgorde = NULL) {
   con <- get_db_connection()
   on.exit(close_db_connection(con))
   
@@ -1160,17 +1220,32 @@ update_gebruiker_kolom_instelling <- function(gebruiker_id, kolom_naam, zichtbaa
   
   if (nrow(bestaande) > 0) {
     # Update bestaande instelling
-    result <- DBI::dbExecute(con, "
-      UPDATE gebruiker_kolom_instellingen 
-      SET zichtbaar = ? 
-      WHERE gebruiker_id = ? AND kolom_naam = ?
-    ", params = list(as.integer(zichtbaar), gebruiker_id, kolom_naam))
+    if (!is.null(volgorde)) {
+      result <- DBI::dbExecute(con, "
+        UPDATE gebruiker_kolom_instellingen 
+        SET zichtbaar = ?, volgorde = ?
+        WHERE gebruiker_id = ? AND kolom_naam = ?
+      ", params = list(as.integer(zichtbaar), volgorde, gebruiker_id, kolom_naam))
+    } else {
+      result <- DBI::dbExecute(con, "
+        UPDATE gebruiker_kolom_instellingen 
+        SET zichtbaar = ? 
+        WHERE gebruiker_id = ? AND kolom_naam = ?
+      ", params = list(as.integer(zichtbaar), gebruiker_id, kolom_naam))
+    }
   } else {
     # Voeg nieuwe instelling toe
-    result <- DBI::dbExecute(con, "
-      INSERT INTO gebruiker_kolom_instellingen (gebruiker_id, kolom_naam, zichtbaar) 
-      VALUES (?, ?, ?)
-    ", params = list(gebruiker_id, kolom_naam, as.integer(zichtbaar)))
+    if (!is.null(volgorde)) {
+      result <- DBI::dbExecute(con, "
+        INSERT INTO gebruiker_kolom_instellingen (gebruiker_id, kolom_naam, zichtbaar, volgorde) 
+        VALUES (?, ?, ?, ?)
+      ", params = list(gebruiker_id, kolom_naam, as.integer(zichtbaar), volgorde))
+    } else {
+      result <- DBI::dbExecute(con, "
+        INSERT INTO gebruiker_kolom_instellingen (gebruiker_id, kolom_naam, zichtbaar) 
+        VALUES (?, ?, ?)
+      ", params = list(gebruiker_id, kolom_naam, as.integer(zichtbaar)))
+    }
   }
 }
 
@@ -1182,7 +1257,6 @@ get_beschikbare_kolommen <- function() {
     "status_zaak" = "Status",
     "type_dienst" = "Type Dienst", 
     "rechtsgebied" = "Rechtsgebied",
-    "omschrijving" = "Omschrijving",
     "zaakaanduiding" = "Zaakaanduiding",
     "directies" = "Aanvragende Directies",
     "type_procedure" = "Type Procedure",
@@ -1212,36 +1286,53 @@ get_beschikbare_kolommen <- function() {
   return(kolommen)
 }
 
-#' Haal zichtbare kolommen voor gebruiker op met defaults
+#' Haal zichtbare kolommen voor gebruiker op met defaults en respecteer volgorde
 get_zichtbare_kolommen <- function(gebruiker_id) {
   # Haal gebruiker instellingen op
   instellingen <- get_gebruiker_kolom_instellingen(gebruiker_id)
   
-  # Default zichtbare kolommen (als gebruiker nog geen instellingen heeft)
-  default_zichtbaar <- c(
-    "status_zaak", "type_dienst", "rechtsgebied", "omschrijving", 
-    "directies", "datum_aanmaak", "laatst_gewijzigd"
+  # Default zichtbare kolommen met volgorde
+  # Volgorde: datum_aanmaak, looptijd, directies, zaakaanduiding, type_dienst, status_zaak
+  default_config <- list(
+    "datum_aanmaak" = 1,
+    "looptijd" = 2,
+    "directies" = 3,
+    "zaakaanduiding" = 4,
+    "type_dienst" = 5,
+    "status_zaak" = 6,
+    "laatst_gewijzigd" = 7,
+    "rechtsgebied" = 8
   )
   
   # Alle beschikbare kolommen
   alle_kolommen <- names(get_beschikbare_kolommen())
   
-  # Bepaal welke kolommen zichtbaar zijn
-  zichtbare_kolommen <- c("zaak_id")  # Zaak ID altijd zichtbaar
+  # Verzamel zichtbare kolommen met hun volgorde
+  kolommen_met_volgorde <- list()
   
   for (kolom in alle_kolommen) {
-    if (kolom %in% names(instellingen)) {
+    if (kolom %in% names(instellingen$zichtbaar)) {
       # Gebruiker heeft instelling voor deze kolom
-      if (instellingen[[kolom]]) {
-        zichtbare_kolommen <- c(zichtbare_kolommen, kolom)
+      if (instellingen$zichtbaar[[kolom]]) {
+        volgorde <- ifelse(kolom %in% names(instellingen$volgorde), 
+                          instellingen$volgorde[[kolom]], 
+                          999)
+        kolommen_met_volgorde[[kolom]] <- volgorde
       }
     } else {
       # Geen instelling, gebruik default
-      if (kolom %in% default_zichtbaar) {
-        zichtbare_kolommen <- c(zichtbare_kolommen, kolom)
+      if (kolom %in% names(default_config)) {
+        kolommen_met_volgorde[[kolom]] <- default_config[[kolom]]
       }
     }
   }
   
-  return(zichtbare_kolommen)
+  # Sorteer op volgorde
+  if (length(kolommen_met_volgorde) > 0) {
+    sorted_kolommen <- names(kolommen_met_volgorde)[order(unlist(kolommen_met_volgorde))]
+    # Zaak ID altijd eerste
+    return(c("zaak_id", sorted_kolommen))
+  } else {
+    return("zaak_id")
+  }
 }

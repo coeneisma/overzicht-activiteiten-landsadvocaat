@@ -544,7 +544,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
             select(
               "Zaak ID" = zaak_id,
               "Datum Aanmaak" = datum_aanmaak,
-              "Omschrijving" = omschrijving,
+              "Zaakaanduiding" = zaakaanduiding,
               "Type Dienst" = type_dienst,
               "Rechtsgebied" = rechtsgebied,
               "Status" = status_zaak,

@@ -72,7 +72,7 @@ filters_ui <- function(id) {
           icon("search"), " Zoeken",
           class = "fw-bold"
         ),
-        placeholder = "Zoek in zaak ID, omschrijving...",
+        placeholder = "Zoek in zaak ID, zaakaanduiding...",
         width = "100%"
       )
     ),

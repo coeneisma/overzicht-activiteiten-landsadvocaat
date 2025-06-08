@@ -166,7 +166,6 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         "status_zaak" = c(col = "status_zaak", display = "Status"),
         "type_dienst" = c(col = "type_dienst", display = "Type Dienst"),
         "rechtsgebied" = c(col = "rechtsgebied", display = "Rechtsgebied"),
-        "omschrijving" = c(col = "omschrijving", display = "Omschrijving"),
         "zaakaanduiding" = c(col = "zaakaanduiding", display = "Zaakaanduiding"),
         "directies" = c(col = "directies", display = "Aanvragende Directies"),
         "type_procedure" = c(col = "type_procedure", display = "Type Procedure"),
@@ -265,12 +264,12 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         }
         
         # Truncate long descriptions
-        if ("Omschrijving" %in% kolom_namen) {
+        if ("Zaakaanduiding" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(Omschrijving = ifelse(
-              nchar(Omschrijving) > 60, 
-              paste0(substr(Omschrijving, 1, 57), "..."), 
-              Omschrijving
+            mutate(Zaakaanduiding = ifelse(
+              nchar(Zaakaanduiding) > 60, 
+              paste0(substr(Zaakaanduiding, 1, 57), "..."), 
+              Zaakaanduiding
             ))
         }
         
@@ -650,8 +649,8 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             )
           ),
           
-          h5("Omschrijving", class = "border-bottom pb-2 mb-3"),
-          p(ifelse(is.na(zaak_data$omschrijving), "Geen omschrijving", zaak_data$omschrijving)),
+          h5("Zaakaanduiding", class = "border-bottom pb-2 mb-3"),
+          p(ifelse(is.na(zaak_data$zaakaanduiding), "Geen zaakaanduiding", zaak_data$zaakaanduiding)),
           
           h5("Financiële Informatie", class = "border-bottom pb-2 mb-3"),
           
@@ -861,9 +860,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             div(
               class = "col-12",
               textAreaInput(
-                session$ns("edit_form_omschrijving"),
-                "Omschrijving:",
-                value = ifelse(is.na(zaak_data$omschrijving), "", zaak_data$omschrijving),
+                session$ns("edit_form_zaakaanduiding"),
+                "Zaakaanduiding:",
+                value = ifelse(is.na(zaak_data$zaakaanduiding), "", zaak_data$zaakaanduiding),
                 rows = 3
               )
             )
@@ -1177,10 +1176,10 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             div(
               class = "col-12",
               textAreaInput(
-                session$ns("form_omschrijving"),
-                "Omschrijving:",
+                session$ns("form_zaakaanduiding"),
+                "Zaakaanduiding:",
                 rows = 3,
-                placeholder = "Korte beschrijving van de zaak..."
+                placeholder = "Korte aanduiding van de zaak..."
               )
             )
           ),
@@ -1422,7 +1421,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               "Datum Aanmaak" = datum_aanmaak,
               "Deadline" = deadline,
               "Looptijd (dagen)" = Looptijd,
-              "Omschrijving" = omschrijving,
+              "Zaakaanduiding" = zaakaanduiding,
               "Type Dienst" = type_dienst,
               "Rechtsgebied" = rechtsgebied,
               "Status" = status_zaak,
@@ -1511,7 +1510,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               icon("exclamation-triangle"), " ",
               paste("Weet je zeker dat je zaak", strong(zaak_id), "permanent wilt verwijderen?")
             ),
-            p(strong("Omschrijving: "), zaak_data$omschrijving[1]),
+            p(strong("Zaakaanduiding: "), zaak_data$zaakaanduiding[1]),
             p(class = "text-danger", strong("LET OP: "), "De zaak wordt permanent verwijderd uit de database en kan niet worden hersteld!")
           ),
           
@@ -1697,7 +1696,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           zaak_id = input$edit_form_zaak_id,
           datum_aanmaak = as.character(input$edit_form_datum_aanmaak),
           deadline = if(edit_deadline_cleared() || is.null(input$edit_form_deadline) || is.na(input$edit_form_deadline)) NA_character_ else as.character(input$edit_form_deadline),
-          omschrijving = if(is.null(input$edit_form_omschrijving) || input$edit_form_omschrijving == "") NA else input$edit_form_omschrijving,
+          zaakaanduiding = if(is.null(input$edit_form_zaakaanduiding) || input$edit_form_zaakaanduiding == "") NA else input$edit_form_zaakaanduiding,
           wjz_mt_lid = if(is.null(input$edit_form_wjz_mt_lid) || input$edit_form_wjz_mt_lid == "") NA else input$edit_form_wjz_mt_lid,
           contactpersoon = if(is.null(input$edit_form_contactpersoon) || input$edit_form_contactpersoon == "") NA else input$edit_form_contactpersoon,
           type_dienst = if(is.null(input$edit_form_type_dienst) || input$edit_form_type_dienst == "") NA else input$edit_form_type_dienst,
@@ -1826,7 +1825,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           zaak_id = input$form_zaak_id,
           datum_aanmaak = as.character(input$form_datum_aanmaak),
           deadline = if(new_deadline_cleared() || is.null(input$form_deadline) || is.na(input$form_deadline)) NA_character_ else as.character(input$form_deadline),
-          omschrijving = if(is.null(input$form_omschrijving) || input$form_omschrijving == "") NA else input$form_omschrijving,
+          zaakaanduiding = if(is.null(input$form_zaakaanduiding) || input$form_zaakaanduiding == "") NA else input$form_zaakaanduiding,
           wjz_mt_lid = if(is.null(input$form_wjz_mt_lid) || input$form_wjz_mt_lid == "") NA else input$form_wjz_mt_lid,
           contactpersoon = if(is.null(input$form_contactpersoon) || input$form_contactpersoon == "") NA else input$form_contactpersoon,
           type_dienst = if(is.null(input$form_type_dienst) || input$form_type_dienst == "") NA else input$form_type_dienst,

@@ -21,6 +21,7 @@ library(DT)
 library(shinyWidgets)
 library(shinycssloaders)
 library(colourpicker)
+library(sortable)
 
 # Visualization
 library(plotly)
