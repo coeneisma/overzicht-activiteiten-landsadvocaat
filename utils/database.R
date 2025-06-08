@@ -438,28 +438,30 @@ verwijder_dropdown_optie <- function(categorie, waarde, gebruiker = "system") {
       stop(paste("Onbekende categorie:", categorie))
     }
     
-    # 2. Check of waarde in gebruik is in zaken
-    query <- paste0("SELECT COUNT(*) as count FROM zaken WHERE ", kolom_naam, " = ?")
-    gebruik_count <- DBI::dbGetQuery(con, query, list(waarde))$count
+    # 2. Check of waarde in gebruik is (verschillende tabellen voor verschillende categorieën)
+    if (categorie == "aanvragende_directie") {
+      # Voor directies: check zaak_directies tabel
+      gebruik_count <- DBI::dbGetQuery(con, "
+        SELECT COUNT(*) as count FROM zaak_directies WHERE directie = ?
+      ", list(waarde))$count
+    } else {
+      # Voor andere categorieën: check zaken tabel
+      query <- paste0("SELECT COUNT(*) as count FROM zaken WHERE ", kolom_naam, " = ?")
+      gebruik_count <- DBI::dbGetQuery(con, query, list(waarde))$count
+    }
     
-    # 3. Als in gebruik, vervang door "niet_ingesteld" 
+    # 3. Als in gebruik, verwijder waarde (consistent voor alle categorieën)
     if (gebruik_count > 0) {
-      # Voeg "niet_ingesteld" optie toe als deze nog niet bestaat
-      bestaande_niet_ingesteld <- DBI::dbGetQuery(con, "
-        SELECT COUNT(*) as count FROM dropdown_opties 
-        WHERE categorie = ? AND waarde = 'niet_ingesteld'
-      ", list(categorie))$count
-      
-      if (bestaande_niet_ingesteld == 0) {
+      if (categorie == "aanvragende_directie") {
+        # Voor directies: verwijder entries uit zaak_directies tabel (zaken kunnen dan lege directies krijgen)
         DBI::dbExecute(con, "
-          INSERT INTO dropdown_opties (categorie, waarde, weergave_naam, volgorde, aangemaakt_door, actief)
-          VALUES (?, 'niet_ingesteld', 'Niet ingesteld', -1, ?, 0)
-        ", list(categorie, gebruiker))
+          DELETE FROM zaak_directies WHERE directie = ?
+        ", list(waarde))
+      } else {
+        # Voor andere categorieën: zet waarde op NULL (leeg)
+        update_query <- paste0("UPDATE zaken SET ", kolom_naam, " = NULL WHERE ", kolom_naam, " = ?")
+        DBI::dbExecute(con, update_query, list(waarde))
       }
-      
-      # Update alle zaken die deze waarde gebruiken
-      update_query <- paste0("UPDATE zaken SET ", kolom_naam, " = 'niet_ingesteld' WHERE ", kolom_naam, " = ?")
-      DBI::dbExecute(con, update_query, list(waarde))
     }
     
     # 4. Verwijder de dropdown optie
@@ -468,16 +470,21 @@ verwijder_dropdown_optie <- function(categorie, waarde, gebruiker = "system") {
       WHERE categorie = ? AND waarde = ?
     ", list(categorie, waarde))
     
-    # Debug info
-    message("Deleted ", rows_deleted, " rows for categorie='", categorie, "', waarde='", waarde, "'")
-    
     # Commit transactie
     DBI::dbCommit(con)
     
     # Clear cache after successful deletion
     clear_dropdown_cache()
     
-    return(list(success = TRUE, zaken_updated = gebruik_count))
+    # Return warning message about affected cases
+    if (gebruik_count > 0) {
+      return(list(
+        success = TRUE,
+        warning = paste("Dropdown waarde verwijderd.", gebruik_count, "zaken hebben nu een lege waarde.")
+      ))
+    } else {
+      return(list(success = TRUE, warning = NULL))
+    }
     
   }, error = function(e) {
     # Rollback bij fout
@@ -639,10 +646,33 @@ update_zaak <- function(zaak_id, zaak_data, gebruiker, directies = NULL) {
       set_columns <- paste(names(zaak_data), "= ?", collapse = ", ")
       query <- paste0("UPDATE zaken SET ", set_columns, " WHERE zaak_id = ?")
       
-      # Create parameter list without names to avoid named/numbered parameter mix
-      params_list <- unname(c(as.list(zaak_data), list(zaak_id)))
+      # Convert data frame values to proper list, handling dates and special values
+      param_values <- list()
+      for (col_name in names(zaak_data)) {
+        value <- zaak_data[[col_name]]
+        
+        # Handle dates properly - convert to character
+        if (inherits(value, "Date")) {
+          param_values[[length(param_values) + 1]] <- as.character(value)
+        } 
+        # Handle logical values - convert to integer or appropriate type
+        else if (is.logical(value)) {
+          param_values[[length(param_values) + 1]] <- if(is.na(value)) NA_character_ else as.integer(value)
+        }
+        # Handle character NA properly
+        else if (is.character(value) && length(value) == 1 && is.na(value)) {
+          param_values[[length(param_values) + 1]] <- NA_character_
+        }
+        # For all other values, use as-is
+        else {
+          param_values[[length(param_values) + 1]] <- value
+        }
+      }
       
-      DBI::dbExecute(con, query, params = params_list)
+      # Add zaak_id parameter for WHERE clause
+      param_values[[length(param_values) + 1]] <- zaak_id
+      
+      DBI::dbExecute(con, query, params = param_values)
     }
     
     # Update directies if provided

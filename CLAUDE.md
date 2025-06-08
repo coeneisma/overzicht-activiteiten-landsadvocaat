@@ -666,3 +666,51 @@ Het probleem werd veroorzaakt door **conflicterende CSS styling** die was toegev
   - `get_zichtbare_kolommen()` - Zichtbare kolommen met defaults
 - ✅ **Dynamic UI rendering** gebaseerd op gebruikersrol
 - ✅ **Performance geoptimaliseerd** met cache clearing
+
+## 🔄 DROPDOWN MANAGEMENT SYSTEEM REVISIE
+
+### **✅ VOLTOOID - Consistente Lege Waarden & Filter Systeem**
+
+#### **Nieuwe Filosofie:**
+- ✅ **Alle dropdown categorieën** gebruiken `NULL`/`NA` voor lege waarden
+- ✅ **Geen "Niet ingesteld"** waarden meer (volledig verwijderd uit systeem)
+- ✅ **"Geen waarde" filter optie** voor alle dropdown filters
+- ✅ **Consistente weergave**: Lege waarden tonen als leeg in tabellen
+
+#### **Dropdown Verwijdering Logica:**
+- ✅ **Bij admin verwijdering**: Waarde wordt `NULL` (voor normale velden) of verwijderd (voor directies)
+- ✅ **Waarschuwing popup**: "Als deze waarde in gebruik is bij bestaande zaken, wordt deze verwijderd"
+- ✅ **Automatische tabel refresh**: Na dropdown verwijdering refresht zaakbeheer automatisch
+- ✅ **Many-to-many handling**: Directies worden intelligent verwijderd (alleen "geen directies" als laatste wordt verwijderd)
+
+#### **Filter Systeem:**
+- ✅ **"Geen waarde" optie**: In alle dropdown filters (vervangt "Onbekend")
+- ✅ **Technische waarde**: `__NA__` gebruikt intern voor NA filtering
+- ✅ **Directies filter fix**: Filter module voegt nu `directies` kolom toe voor correcte filtering
+- ✅ **Consistent gedrag**: Alle categorieën werken identiek
+
+#### **Database & Code Updates:**
+- ✅ **`verwijder_dropdown_optie()`**: Vereenvoudigd - alle categorieën behandeld gelijk
+- ✅ **Data weergave**: NA → lege string conversie voor alle dropdown velden in tabellen
+- ✅ **Filter module**: `apply_dropdown_filter()` helper voor consistente NA handling
+- ✅ **Directies speciale logica**: Verwijderd - nu consistent met andere velden
+
+#### **Belangrijke Implementatie Details:**
+- Filter module voegt `directies` kolom toe aan raw data voor correcte filtering
+- Aanvragende directies gebruikt dezelfde NA logica als andere dropdowns
+- Alle "NIET_INGESTELD" legacy waarden zijn opgeruimd uit database
+
+## 📅 VOLGENDE ONTWIKKELINGEN
+
+### **1. Datum Filter Reparatie** 🗓️
+**Probleem**: Datum filter behandelt datums als strings
+**Oplossing**: Implementeer proper date parsing en comparison in filter logica
+
+### **2. Excel Import Module** 📊
+**Functionaliteit**: Bulk import/update van zaken via Excel
+**Features**:
+- Upload Excel bestand met zaken data
+- Validatie van verplichte velden
+- Update bestaande zaken of voeg nieuwe toe
+- Foutrapportage voor ongeldige entries
+- Mapping van Excel kolommen naar database velden

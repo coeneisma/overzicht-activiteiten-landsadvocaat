@@ -122,21 +122,16 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           directies = {
             dirs <- get_zaak_directies(zaak_id)
             if (length(dirs) == 0 || all(is.na(dirs))) {
-              "Niet ingesteld"
+              NA_character_  # Gebruik NA net als andere dropdown velden
             } else {
               # Filter out NA and empty values
               dirs <- dirs[!is.na(dirs) & dirs != ""]
               if (length(dirs) == 0) {
-                "Niet ingesteld"
+                NA_character_  # Gebruik NA net als andere dropdown velden
               } else {
-                # Convert each directie to display name - handle both cases of niet_ingesteld
+                # Convert each directie to display name
                 weergave_namen <- sapply(dirs, function(d) {
-                  # Handle both "NIET_INGESTELD" and "niet_ingesteld" cases
-                  if (toupper(d) == "NIET_INGESTELD") {
-                    return("Niet ingesteld")
-                  } else {
-                    return(get_weergave_naam_cached("aanvragende_directie", d))
-                  }
+                  get_weergave_naam_cached("aanvragende_directie", d)
                 })
                 paste(weergave_namen, collapse = ", ")
               }
@@ -250,17 +245,32 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         # Convert database values to display names (OPTIMIZED - bulk conversion)
         if ("Type Dienst" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(`Type Dienst` = bulk_get_weergave_namen("type_dienst", `Type Dienst`))
+            mutate(`Type Dienst` = {
+              converted <- bulk_get_weergave_namen("type_dienst", `Type Dienst`)
+              ifelse(is.na(converted), "", converted)
+            })
         }
         
         if ("Rechtsgebied" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(Rechtsgebied = bulk_get_weergave_namen("rechtsgebied", Rechtsgebied))
+            mutate(Rechtsgebied = {
+              converted <- bulk_get_weergave_namen("rechtsgebied", Rechtsgebied)
+              ifelse(is.na(converted), "", converted)
+            })
         }
         
         if ("Status" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(Status = bulk_get_weergave_namen("status_zaak", Status))
+            mutate(Status = {
+              converted <- bulk_get_weergave_namen("status_zaak", Status)
+              ifelse(is.na(converted), "", converted)
+            })
+        }
+        
+        # Convert NA directies to empty string for display
+        if ("Aanvragende Directies" %in% kolom_namen) {
+          result_data <- result_data %>%
+            mutate(`Aanvragende Directies` = ifelse(is.na(`Aanvragende Directies`), "", `Aanvragende Directies`))
         }
         
         # Truncate long descriptions
@@ -594,10 +604,10 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       }
       
       tryCatch({
-        dropdown_choices$type_dienst <- get_dropdown_opties("type_dienst")
-        dropdown_choices$rechtsgebied <- get_dropdown_opties("rechtsgebied")
-        dropdown_choices$status_zaak <- get_dropdown_opties("status_zaak")
-        dropdown_choices$aanvragende_directie <- get_dropdown_opties("aanvragende_directie")
+        dropdown_choices$type_dienst <- get_dropdown_opties("type_dienst", exclude_fallback = TRUE)
+        dropdown_choices$rechtsgebied <- get_dropdown_opties("rechtsgebied", exclude_fallback = TRUE)
+        dropdown_choices$status_zaak <- get_dropdown_opties("status_zaak", exclude_fallback = TRUE)
+        dropdown_choices$aanvragende_directie <- get_dropdown_opties("aanvragende_directie", exclude_fallback = TRUE)
         
         cli_alert_success("Dropdown choices refreshed for form")
         
@@ -1694,8 +1704,22 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         
         updated_data <- data.frame(
           zaak_id = input$edit_form_zaak_id,
-          datum_aanmaak = as.character(input$edit_form_datum_aanmaak),
-          deadline = if(edit_deadline_cleared() || is.null(input$edit_form_deadline) || is.na(input$edit_form_deadline)) NA_character_ else as.character(input$edit_form_deadline),
+          datum_aanmaak = tryCatch({
+            if(!is.null(input$edit_form_datum_aanmaak) && !is.na(input$edit_form_datum_aanmaak)) {
+              as.character(as.Date(input$edit_form_datum_aanmaak))
+            } else {
+              as.character(Sys.Date())
+            }
+          }, error = function(e) as.character(Sys.Date())),
+          deadline = tryCatch({
+            if(edit_deadline_cleared() || is.null(input$edit_form_deadline)) {
+              NA_character_
+            } else if(is.na(input$edit_form_deadline)) {
+              NA_character_
+            } else {
+              as.character(as.Date(input$edit_form_deadline))
+            }
+          }, error = function(e) NA_character_),
           zaakaanduiding = if(is.null(input$edit_form_zaakaanduiding) || input$edit_form_zaakaanduiding == "") NA else input$edit_form_zaakaanduiding,
           wjz_mt_lid = if(is.null(input$edit_form_wjz_mt_lid) || input$edit_form_wjz_mt_lid == "") NA else input$edit_form_wjz_mt_lid,
           contactpersoon = if(is.null(input$edit_form_contactpersoon) || input$edit_form_contactpersoon == "") NA else input$edit_form_contactpersoon,
@@ -1823,8 +1847,22 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         
         form_data <- data.frame(
           zaak_id = input$form_zaak_id,
-          datum_aanmaak = as.character(input$form_datum_aanmaak),
-          deadline = if(new_deadline_cleared() || is.null(input$form_deadline) || is.na(input$form_deadline)) NA_character_ else as.character(input$form_deadline),
+          datum_aanmaak = tryCatch({
+            if(!is.null(input$form_datum_aanmaak) && !is.na(input$form_datum_aanmaak)) {
+              as.character(as.Date(input$form_datum_aanmaak))
+            } else {
+              as.character(Sys.Date())
+            }
+          }, error = function(e) as.character(Sys.Date())),
+          deadline = tryCatch({
+            if(new_deadline_cleared() || is.null(input$form_deadline)) {
+              NA_character_
+            } else if(is.na(input$form_deadline)) {
+              NA_character_
+            } else {
+              as.character(as.Date(input$form_deadline))
+            }
+          }, error = function(e) NA_character_),
           zaakaanduiding = if(is.null(input$form_zaakaanduiding) || input$form_zaakaanduiding == "") NA else input$form_zaakaanduiding,
           wjz_mt_lid = if(is.null(input$form_wjz_mt_lid) || input$form_wjz_mt_lid == "") NA else input$form_wjz_mt_lid,
           contactpersoon = if(is.null(input$form_contactpersoon) || input$form_contactpersoon == "") NA else input$form_contactpersoon,

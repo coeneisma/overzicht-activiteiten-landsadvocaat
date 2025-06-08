@@ -158,7 +158,8 @@ server <- function(input, output, session) {
       "instellingen",
       login_result$user,
       login_result$is_admin,
-      dropdown_refresh_trigger
+      dropdown_refresh_trigger,
+      data_refresh_trigger
     )
     cli_alert_success("Instellingen module initialized successfully")
     result

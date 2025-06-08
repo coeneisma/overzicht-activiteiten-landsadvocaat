@@ -10,7 +10,7 @@
 #' @param is_admin Reactive indicating if user is admin
 #' @param global_dropdown_refresh_trigger Reactive trigger for global dropdown refresh
 #' @return List with reactive values and functions
-instellingen_server <- function(id, current_user, is_admin, global_dropdown_refresh_trigger = NULL) {
+instellingen_server <- function(id, current_user, is_admin, global_dropdown_refresh_trigger = NULL, data_refresh_trigger = NULL) {
   
   moduleServer(id, function(input, output, session) {
     
@@ -522,7 +522,7 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
             icon("exclamation-triangle"), " ",
             HTML(paste("Weet je zeker dat je de waarde <strong>", display_name, "</strong> wilt verwijderen?"))
           ),
-          p("Als deze waarde in gebruik is bij bestaande zaken, wordt deze vervangen door 'Niet ingesteld'.")
+          p("Als deze waarde in gebruik is bij bestaande zaken, wordt deze verwijderd.")
         ),
         
         footer = div(
@@ -558,16 +558,13 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
         # Gebruik de nieuwe database functie
         result <- verwijder_dropdown_optie(category, waarde, current_user())
         
-        cli_alert_info("Delete result: success={result$success}, zaken_updated={result$zaken_updated}")
+        cli_alert_info("Delete result: success={result$success}, warning={result$warning}")
         
         if (result$success) {
           cli_alert_success("Dropdown value deleted: {category}/{waarde}")
           
-          if (result$zaken_updated > 0) {
-            show_notification(
-              paste("Waarde", waarde, "verwijderd.", result$zaken_updated, "zaken bijgewerkt naar 'Niet ingesteld'."), 
-              type = "message"
-            )
+          if (!is.null(result$warning)) {
+            show_notification(result$warning, type = "warning")
           } else {
             show_notification(paste("Waarde", waarde, "succesvol verwijderd."), type = "message")
           }
@@ -576,6 +573,11 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
           dropdown_refresh(dropdown_refresh() + 1)
           if (!is.null(global_dropdown_refresh_trigger)) {
             global_dropdown_refresh_trigger(global_dropdown_refresh_trigger() + 1)
+          }
+          
+          # Trigger data refresh to update tables
+          if (!is.null(data_refresh_trigger)) {
+            data_refresh_trigger(data_refresh_trigger() + 1)
           }
           
         } else {

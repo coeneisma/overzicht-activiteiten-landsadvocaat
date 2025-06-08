@@ -69,8 +69,11 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
           choices <- get_dropdown_opties(category)
           dropdown_choices[[category]] <- choices
           
+          # Add "Geen waarde" option for NA values (consistent for all categories)
+          all_choices <- c("Alle" = "", "Geen waarde" = "__NA__", choices)
+          
           # All dropdowns use selectInput - works reliably with fixed CSS
-          updateSelectInput(session, category, choices = c("Alle" = "", choices), selected = "")
+          updateSelectInput(session, category, choices = all_choices, selected = "")
         }
         
         # Load unique values from actual data for non-dropdown fields
@@ -152,8 +155,31 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
         return(data.frame())
       }
       
+      # Add directies column for filtering (same logic as in data_management)
+      data_with_directies <- data %>%
+        rowwise() %>%
+        mutate(
+          directies = {
+            dirs <- get_zaak_directies(zaak_id)
+            if (length(dirs) == 0 || all(is.na(dirs))) {
+              NA_character_
+            } else {
+              dirs <- dirs[!is.na(dirs) & dirs != ""]
+              if (length(dirs) == 0) {
+                NA_character_
+              } else {
+                weergave_namen <- sapply(dirs, function(d) {
+                  get_weergave_naam_cached("aanvragende_directie", d)
+                })
+                paste(weergave_namen, collapse = ", ")
+              }
+            }
+          }
+        ) %>%
+        ungroup()
+      
       # Apply filters step by step
-      filtered <- data
+      filtered <- data_with_directies
       
       # Text search in zaak_id and zaakaanduiding
       if (!is.null(input$search_text) && !is.na(input$search_text) && nchar(input$search_text) > 0) {
@@ -165,34 +191,39 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
           )
       }
       
+      # Helper function for dropdown filtering with "Geen waarde" support
+      apply_dropdown_filter <- function(data, input_values, column_name) {
+        if (is.null(input_values) || length(input_values) == 0) {
+          return(data)
+        }
+        
+        # Check if "Geen waarde" (__NA__) is selected
+        if ("__NA__" %in% input_values) {
+          # Remove __NA__ from input_values and get the real values
+          real_values <- input_values[input_values != "__NA__"]
+          
+          # Filter for both NA values and the selected real values
+          if (length(real_values) > 0) {
+            data %>% filter(is.na(!!sym(column_name)) | !!sym(column_name) %in% real_values)
+          } else {
+            # Only "Geen waarde" selected - filter for NA values only
+            data %>% filter(is.na(!!sym(column_name)))
+          }
+        } else {
+          # Normal filtering without NA values
+          data %>% filter(!!sym(column_name) %in% input_values)
+        }
+      }
+      
       # Dropdown filters
-      if (!is.null(input$type_dienst) && length(input$type_dienst) > 0) {
-        filtered <- filtered %>% filter(type_dienst %in% input$type_dienst)
-      }
+      filtered <- apply_dropdown_filter(filtered, input$type_dienst, "type_dienst")
+      filtered <- apply_dropdown_filter(filtered, input$rechtsgebied, "rechtsgebied")
+      filtered <- apply_dropdown_filter(filtered, input$type_procedure, "type_procedure")
       
-      if (!is.null(input$rechtsgebied) && length(input$rechtsgebied) > 0) {
-        filtered <- filtered %>% filter(rechtsgebied %in% input$rechtsgebied)
-      }
-      
-      if (!is.null(input$type_procedure) && length(input$type_procedure) > 0) {
-        filtered <- filtered %>% filter(type_procedure %in% input$type_procedure)
-      }
-      
-      if (!is.null(input$status_zaak) && length(input$status_zaak) > 0) {
-        filtered <- filtered %>% filter(status_zaak %in% input$status_zaak)
-      }
-      
-      if (!is.null(input$hoedanigheid_partij) && length(input$hoedanigheid_partij) > 0) {
-        filtered <- filtered %>% filter(hoedanigheid_partij %in% input$hoedanigheid_partij)
-      }
-      
-      if (!is.null(input$type_wederpartij) && length(input$type_wederpartij) > 0) {
-        filtered <- filtered %>% filter(type_wederpartij %in% input$type_wederpartij)
-      }
-      
-      if (!is.null(input$reden_inzet) && length(input$reden_inzet) > 0) {
-        filtered <- filtered %>% filter(reden_inzet %in% input$reden_inzet)
-      }
+      filtered <- apply_dropdown_filter(filtered, input$status_zaak, "status_zaak")
+      filtered <- apply_dropdown_filter(filtered, input$hoedanigheid_partij, "hoedanigheid_partij")
+      filtered <- apply_dropdown_filter(filtered, input$type_wederpartij, "type_wederpartij")
+      filtered <- apply_dropdown_filter(filtered, input$reden_inzet, "reden_inzet")
       
       # Date range filter
       if (!is.null(input$datum_range)) {
@@ -204,26 +235,42 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
         }
       }
       
-      # Organization filters - Directies (now a comma-separated string)
+      # Organization filters - Directies (treated differently due to comma-separated values)
       if (!is.null(input$aanvragende_directie) && length(input$aanvragende_directie) > 0) {
-        # Convert selected database values to display names for matching
-        selected_display_names <- sapply(input$aanvragende_directie, function(x) {
-          get_weergave_naam("aanvragende_directie", x)
-        })
         
-        # Filter rows where directies column contains any of the selected display names
-        filtered <- filtered %>% 
-          filter(sapply(directies, function(dirs) {
-            # Als we zoeken naar "Niet ingesteld", check of dirs leeg of "Niet ingesteld" is
-            if ("Niet ingesteld" %in% selected_display_names) {
-              if (is.na(dirs) || dirs == "" || dirs == "Niet ingesteld") {
-                return(TRUE)
-              }
-            }
-            # Voor andere waarden, check of ze in de string voorkomen
-            if (is.na(dirs) || dirs == "" || dirs == "Niet ingesteld") return(FALSE)
-            any(sapply(selected_display_names, function(name) grepl(name, dirs, fixed = TRUE)))
-          }))
+        # Check if "Geen waarde" (__NA__) is selected
+        if ("__NA__" %in% input$aanvragende_directie) {
+          # Remove __NA__ from input_values and get the real values
+          real_values <- input$aanvragende_directie[input$aanvragende_directie != "__NA__"]
+          
+          if (length(real_values) > 0) {
+            # Filter for both NA directies AND the selected real values
+            # Convert selected database values to display names for matching
+            selected_display_names <- sapply(real_values, function(x) {
+              get_weergave_naam("aanvragende_directie", x)
+            })
+            
+            filtered <- filtered %>% 
+              filter(is.na(directies) | sapply(directies, function(dirs) {
+                if (is.na(dirs)) return(FALSE)  # Already handled by is.na(directies)
+                any(sapply(selected_display_names, function(name) grepl(name, dirs, fixed = TRUE)))
+              }))
+          } else {
+            # Only "Geen waarde" selected - filter for NA values only
+            filtered <- filtered %>% filter(is.na(directies))
+          }
+        } else {
+          # Normal filtering without NA values
+          # Convert selected database values to display names for matching
+          selected_display_names <- sapply(input$aanvragende_directie, function(x) {
+            get_weergave_naam("aanvragende_directie", x)
+          })
+          
+          filtered <- filtered %>% 
+            filter(!is.na(directies) & sapply(directies, function(dirs) {
+              any(sapply(selected_display_names, function(name) grepl(name, dirs, fixed = TRUE)))
+            }))
+        }
       }
       
       if (!is.null(input$advocaat) && length(input$advocaat) > 0) {
