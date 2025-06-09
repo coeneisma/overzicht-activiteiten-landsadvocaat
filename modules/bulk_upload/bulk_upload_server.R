@@ -86,6 +86,9 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
           dropdown_opties$rechtsgebied <- get_dropdown_opties("rechtsgebied", exclude_fallback = TRUE)
           dropdown_opties$status_zaak <- get_dropdown_opties("status_zaak", exclude_fallback = TRUE)
           dropdown_opties$aanvragende_directie <- get_dropdown_opties("aanvragende_directie", exclude_fallback = TRUE)
+          dropdown_opties$hoedanigheid_partij <- get_dropdown_opties("hoedanigheid_partij", exclude_fallback = TRUE)
+          dropdown_opties$type_wederpartij <- get_dropdown_opties("type_wederpartij", exclude_fallback = TRUE)
+          dropdown_opties$reden_inzet <- get_dropdown_opties("reden_inzet", exclude_fallback = TRUE)
           
           # Log dropdown structure for debugging
           for (cat_name in names(dropdown_opties)) {
@@ -159,7 +162,12 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
               "Deadline" = safe_format_date(existing_data$deadline),
               "Zaakaanduiding" = ifelse(is.na(existing_data$zaakaanduiding), "", existing_data$zaakaanduiding),
               "Type Dienst" = safe_get_weergave_naam(existing_data$type_dienst, "type_dienst"),
+              "Type Procedure" = ifelse(is.na(existing_data$type_procedure), "", existing_data$type_procedure),
               "Rechtsgebied" = safe_get_weergave_naam(existing_data$rechtsgebied, "rechtsgebied"),
+              "Hoedanigheid Partij" = safe_get_weergave_naam(existing_data$hoedanigheid_partij, "hoedanigheid_partij"),
+              "Type Wederpartij" = safe_get_weergave_naam(existing_data$type_wederpartij, "type_wederpartij"),
+              "Reden Inzet" = safe_get_weergave_naam(existing_data$reden_inzet, "reden_inzet"),
+              "Aansprakelijkheid" = ifelse(is.na(existing_data$aansprakelijkheid), "", existing_data$aansprakelijkheid),
               "Status" = safe_get_weergave_naam(existing_data$status_zaak, "status_zaak"),
               "Aanvragende Directie" = sapply(existing_data$zaak_id, function(id) {
                 directies <- get_zaak_directies(id)
@@ -178,11 +186,22 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
                   ""
                 }
               }),
+              "ProZa-link" = ifelse(is.na(existing_data$proza_link), "", existing_data$proza_link),
+              "WJZ MT Lid" = ifelse(is.na(existing_data$wjz_mt_lid), "", existing_data$wjz_mt_lid),
               "Advocaat" = ifelse(is.na(existing_data$advocaat), "", existing_data$advocaat),
               "Advocatenkantoor" = ifelse(is.na(existing_data$adv_kantoor), "", existing_data$adv_kantoor),
+              "Advocatenkantoor Contactpersoon" = ifelse(is.na(existing_data$adv_kantoor_contactpersoon), "", existing_data$adv_kantoor_contactpersoon),
               "Budget WJZ (€)" = ifelse(is.na(existing_data$la_budget_wjz), "", format(existing_data$la_budget_wjz, scientific = FALSE)),
               "Budget Andere Directie (€)" = ifelse(is.na(existing_data$budget_andere_directie), "", format(existing_data$budget_andere_directie, scientific = FALSE)),
+              "Kostenplaats" = ifelse(is.na(existing_data$kostenplaats), "", existing_data$kostenplaats),
+              "Intern Ordernummer" = ifelse(is.na(existing_data$intern_ordernummer), "", existing_data$intern_ordernummer),
+              "Grootboekrekening" = ifelse(is.na(existing_data$grootboekrekening), "", existing_data$grootboekrekening),
+              "Budgetcode" = ifelse(is.na(existing_data$budgetcode), "", existing_data$budgetcode),
               "Financieel Risico (€)" = ifelse(is.na(existing_data$financieel_risico), "", format(existing_data$financieel_risico, scientific = FALSE)),
+              "Budget Beleid" = ifelse(is.na(existing_data$budget_beleid), "", existing_data$budget_beleid),
+              "Advies Vertegenwoordiging Bestuursrecht" = ifelse(is.na(existing_data$advies_vertegenw_bestuursR), "", existing_data$advies_vertegenw_bestuursR),
+              "Locatie Formulier" = ifelse(is.na(existing_data$locatie_formulier), "", existing_data$locatie_formulier),
+              "Contactpersoon" = ifelse(is.na(existing_data$contactpersoon), "", existing_data$contactpersoon),
               "Opmerkingen" = ifelse(is.na(existing_data$opmerkingen), "", existing_data$opmerkingen),
               check.names = FALSE,
               stringsAsFactors = FALSE
@@ -204,11 +223,28 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
                 if(length(dropdown_opties$type_dienst) > 1) names(dropdown_opties$type_dienst)[2] else "",
                 ""
               ),
+              "Type Procedure" = c("Procedure A", "", ""),
               "Rechtsgebied" = c(
                 if(length(dropdown_opties$rechtsgebied) > 0) names(dropdown_opties$rechtsgebied)[1] else "",
                 if(length(dropdown_opties$rechtsgebied) > 1) names(dropdown_opties$rechtsgebied)[2] else "",
                 ""
               ),
+              "Hoedanigheid Partij" = c(
+                if(length(dropdown_opties$hoedanigheid_partij) > 0) names(dropdown_opties$hoedanigheid_partij)[1] else "",
+                "",
+                ""
+              ),
+              "Type Wederpartij" = c(
+                if(length(dropdown_opties$type_wederpartij) > 0) names(dropdown_opties$type_wederpartij)[1] else "",
+                "",
+                ""
+              ),
+              "Reden Inzet" = c(
+                if(length(dropdown_opties$reden_inzet) > 0) names(dropdown_opties$reden_inzet)[1] else "",
+                "",
+                ""
+              ),
+              "Aansprakelijkheid" = c("", "Ja", ""),
               "Status" = c(
                 if(length(dropdown_opties$status_zaak) > 0) names(dropdown_opties$status_zaak)[1] else "",
                 if(length(dropdown_opties$status_zaak) > 1) names(dropdown_opties$status_zaak)[2] else "",
@@ -219,11 +255,22 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
                 if(length(dropdown_opties$aanvragende_directie) > 1) paste(names(dropdown_opties$aanvragende_directie)[1:min(2, length(dropdown_opties$aanvragende_directie))], collapse = ", ") else "",
                 ""
               ),
+              "ProZa-link" = c("https://proza.ocw.nl/12345", "", ""),
+              "WJZ MT Lid" = c("J. Jansen", "", ""),
               "Advocaat" = c("Jan Jansen", "Marie de Vries", ""),
               "Advocatenkantoor" = c("Advocatenkantoor A", "Kantoor B", ""),
+              "Advocatenkantoor Contactpersoon" = c("P. Pietersen", "", ""),
               "Budget WJZ (€)" = c("50000", "25000", ""),
               "Budget Andere Directie (€)" = c("", "10000", ""),
+              "Kostenplaats" = c("KP123", "KP456", ""),
+              "Intern Ordernummer" = c("IO2024001", "", ""),
+              "Grootboekrekening" = c("1234567", "", ""),
+              "Budgetcode" = c("BC001", "BC002", ""),
               "Financieel Risico (€)" = c("100000", "", ""),
+              "Budget Beleid" = c("Budget uit beleidsbudget X", "", ""),
+              "Advies Vertegenwoordiging Bestuursrecht" = c("Ja", "Nee", ""),
+              "Locatie Formulier" = c("Map A / Submap B", "", ""),
+              "Contactpersoon" = c("K. Klaassen", "L. de Lange", ""),
               "Opmerkingen" = c("Dit is een voorbeeldzaak", "", ""),
               check.names = FALSE,
               stringsAsFactors = FALSE
@@ -255,14 +302,30 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
               "Deadline",
               "Zaakaanduiding",
               "Type Dienst",
-              "Rechtsgebied", 
+              "Type Procedure",
+              "Rechtsgebied",
+              "Hoedanigheid Partij",
+              "Type Wederpartij",
+              "Reden Inzet",
+              "Aansprakelijkheid",
               "Status",
               "Aanvragende Directie",
+              "ProZa-link",
+              "WJZ MT Lid",
               "Advocaat",
               "Advocatenkantoor",
+              "Advocatenkantoor Contactpersoon",
               "Budget WJZ (€)",
               "Budget Andere Directie (€)",
+              "Kostenplaats",
+              "Intern Ordernummer",
+              "Grootboekrekening",
+              "Budgetcode",
               "Financieel Risico (€)",
+              "Budget Beleid",
+              "Advies Vertegenwoordiging Bestuursrecht",
+              "Locatie Formulier",
+              "Contactpersoon",
               "Opmerkingen"
             ),
             "Verplicht" = c(
@@ -279,6 +342,22 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
               "Nee",
               "Nee",
               "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
+              "Nee",
               "Nee"
             ),
             "Beschrijving" = c(
@@ -287,14 +366,30 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
               "Deadline datum in DD-MM-YYYY formaat (optioneel)",
               "Korte beschrijving van de zaak",
               "Selecteer uit beschikbare opties (zie Dropdown Waarden sheet)",
+              "Vrije tekst - type juridische procedure",
               "Selecteer uit beschikbare opties (zie Dropdown Waarden sheet)",
+              "Selecteer uit beschikbare opties (zie Dropdown Waarden sheet)",
+              "Selecteer uit beschikbare opties (zie Dropdown Waarden sheet)",
+              "Selecteer uit beschikbare opties (zie Dropdown Waarden sheet)",
+              "Vrije tekst - aansprakelijkheid informatie",
               "Selecteer uit beschikbare opties (zie Dropdown Waarden sheet)",
               "Eén of meerdere directies, gescheiden door komma's",
+              "URL naar ProZa systeem",
+              "Naam van WJZ MT lid",
               "Naam van de advocaat",
-              "Naam van het advocatenkantoor", 
+              "Naam van het advocatenkantoor",
+              "Naam van contactpersoon bij advocatenkantoor",
               "Budget van WJZ in euro's (alleen cijfers)",
               "Budget van andere directie in euro's (alleen cijfers)",
+              "Kostenplaatscode",
+              "Intern ordernummer",
+              "Grootboekrekeningnummer",
+              "Budgetcode",
               "Financieel risico in euro's (alleen cijfers)",
+              "Vrije tekst - budget beleid informatie",
+              "Vrije tekst - advies vertegenwoordiging bestuursrecht",
+              "Locatie waar formulier is opgeslagen",
+              "Naam van contactpersoon voor deze zaak",
               "Aanvullende opmerkingen"
             ),
             check.names = FALSE,
@@ -800,6 +895,9 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
       dropdown_opties$rechtsgebied <- get_dropdown_opties("rechtsgebied", exclude_fallback = TRUE)
       dropdown_opties$status_zaak <- get_dropdown_opties("status_zaak", exclude_fallback = TRUE)
       dropdown_opties$aanvragende_directie <- get_dropdown_opties("aanvragende_directie", exclude_fallback = TRUE)
+      dropdown_opties$hoedanigheid_partij <- get_dropdown_opties("hoedanigheid_partij", exclude_fallback = TRUE)
+      dropdown_opties$type_wederpartij <- get_dropdown_opties("type_wederpartij", exclude_fallback = TRUE)
+      dropdown_opties$reden_inzet <- get_dropdown_opties("reden_inzet", exclude_fallback = TRUE)
       
       # Debug: Log dropdown structure in detail
       write_debug_log("=== DROPDOWN OPTIONS ANALYSIS ===")
@@ -840,7 +938,10 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
       dropdown_fields <- list(
         "Type Dienst" = "type_dienst",
         "Rechtsgebied" = "rechtsgebied", 
-        "Status" = "status_zaak"
+        "Status" = "status_zaak",
+        "Hoedanigheid Partij" = "hoedanigheid_partij",
+        "Type Wederpartij" = "type_wederpartij",
+        "Reden Inzet" = "reden_inzet"
       )
       
       for (field_name in names(dropdown_fields)) {
@@ -1021,7 +1122,7 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
       )
       
       # Add dropdown fields with status colors
-      dropdown_fields <- c("Type Dienst", "Rechtsgebied", "Status", "Aanvragende Directie")
+      dropdown_fields <- c("Type Dienst", "Rechtsgebied", "Status", "Aanvragende Directie", "Hoedanigheid Partij", "Type Wederpartij", "Reden Inzet")
       
       for (field in dropdown_fields) {
         original_col <- paste0(field, "_original")
@@ -1124,7 +1225,7 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
           correction_items <- list()
           item_counter <- 1
           
-          dropdown_fields <- c("Type Dienst", "Rechtsgebied", "Status", "Aanvragende Directie")
+          dropdown_fields <- c("Type Dienst", "Rechtsgebied", "Status", "Aanvragende Directie", "Hoedanigheid Partij", "Type Wederpartij", "Reden Inzet")
           
           for (row in 1:nrow(results)) {
             zaak_id <- results$zaak_id[row]
@@ -1802,7 +1903,10 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
       dropdown_field_mapping <- list(
         "Type Dienst" = "type_dienst",
         "Rechtsgebied" = "rechtsgebied", 
-        "Status" = "status_zaak"
+        "Status" = "status_zaak",
+        "Hoedanigheid Partij" = "hoedanigheid_partij",
+        "Type Wederpartij" = "type_wederpartij",
+        "Reden Inzet" = "reden_inzet"
       )
       
       for (field in names(dropdown_field_mapping)) {
@@ -1946,15 +2050,34 @@ bulk_upload_server <- function(id, data_refresh_trigger = NULL, filtered_data = 
             datum_aanmaak = convert_date(row$`Datum Aanmaak`),
             zaakaanduiding = if (!is.null(row$Zaakaanduiding) && !is.na(row$Zaakaanduiding) && row$Zaakaanduiding != "") row$Zaakaanduiding else NA_character_,
             type_dienst = convert_dropdown(row$`Type Dienst`, "type_dienst"),
+            type_procedure = if (!is.null(row$`Type Procedure`) && !is.na(row$`Type Procedure`) && row$`Type Procedure` != "") row$`Type Procedure` else NA_character_,
             rechtsgebied = convert_dropdown(row$Rechtsgebied, "rechtsgebied"),
+            hoedanigheid_partij = convert_dropdown(row$`Hoedanigheid Partij`, "hoedanigheid_partij"),
+            type_wederpartij = convert_dropdown(row$`Type Wederpartij`, "type_wederpartij"),
+            reden_inzet = convert_dropdown(row$`Reden Inzet`, "reden_inzet"),
+            aansprakelijkheid = if (!is.null(row$Aansprakelijkheid) && !is.na(row$Aansprakelijkheid) && row$Aansprakelijkheid != "") row$Aansprakelijkheid else NA_character_,
             status_zaak = convert_dropdown(row$Status, "status_zaak"),
             deadline = convert_deadline(row$Deadline),
-            # Additional fields from Excel
+            # Organisatie velden
+            proza_link = if (!is.null(row$`ProZa-link`) && !is.na(row$`ProZa-link`) && row$`ProZa-link` != "") row$`ProZa-link` else NA_character_,
+            wjz_mt_lid = if (!is.null(row$`WJZ MT Lid`) && !is.na(row$`WJZ MT Lid`) && row$`WJZ MT Lid` != "") row$`WJZ MT Lid` else NA_character_,
+            # Advocatuur velden
             advocaat = if (!is.null(row$Advocaat) && !is.na(row$Advocaat) && row$Advocaat != "") row$Advocaat else NA_character_,
             adv_kantoor = if (!is.null(row$Advocatenkantoor) && !is.na(row$Advocatenkantoor) && row$Advocatenkantoor != "") row$Advocatenkantoor else NA_character_,
+            adv_kantoor_contactpersoon = if (!is.null(row$`Advocatenkantoor Contactpersoon`) && !is.na(row$`Advocatenkantoor Contactpersoon`) && row$`Advocatenkantoor Contactpersoon` != "") row$`Advocatenkantoor Contactpersoon` else NA_character_,
+            # Financiële velden
             la_budget_wjz = convert_budget(row$`Budget WJZ (€)`),
             budget_andere_directie = convert_budget(row$`Budget Andere Directie (€)`),
+            kostenplaats = if (!is.null(row$Kostenplaats) && !is.na(row$Kostenplaats) && row$Kostenplaats != "") row$Kostenplaats else NA_character_,
+            intern_ordernummer = if (!is.null(row$`Intern Ordernummer`) && !is.na(row$`Intern Ordernummer`) && row$`Intern Ordernummer` != "") row$`Intern Ordernummer` else NA_character_,
+            grootboekrekening = if (!is.null(row$Grootboekrekening) && !is.na(row$Grootboekrekening) && row$Grootboekrekening != "") row$Grootboekrekening else NA_character_,
+            budgetcode = if (!is.null(row$Budgetcode) && !is.na(row$Budgetcode) && row$Budgetcode != "") row$Budgetcode else NA_character_,
             financieel_risico = convert_budget(row$`Financieel Risico (€)`),
+            budget_beleid = if (!is.null(row$`Budget Beleid`) && !is.na(row$`Budget Beleid`) && row$`Budget Beleid` != "") row$`Budget Beleid` else NA_character_,
+            # Overige velden
+            advies_vertegenw_bestuursR = if (!is.null(row$`Advies Vertegenwoordiging Bestuursrecht`) && !is.na(row$`Advies Vertegenwoordiging Bestuursrecht`) && row$`Advies Vertegenwoordiging Bestuursrecht` != "") row$`Advies Vertegenwoordiging Bestuursrecht` else NA_character_,
+            locatie_formulier = if (!is.null(row$`Locatie Formulier`) && !is.na(row$`Locatie Formulier`) && row$`Locatie Formulier` != "") row$`Locatie Formulier` else NA_character_,
+            contactpersoon = if (!is.null(row$Contactpersoon) && !is.na(row$Contactpersoon) && row$Contactpersoon != "") row$Contactpersoon else NA_character_,
             opmerkingen = if (!is.null(row$Opmerkingen) && !is.na(row$Opmerkingen) && row$Opmerkingen != "") row$Opmerkingen else NA_character_,
             stringsAsFactors = FALSE
           )

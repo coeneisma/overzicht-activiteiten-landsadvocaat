@@ -202,7 +202,7 @@ server <- function(input, output, session) {
   # Initialize bulk upload module
   bulk_upload_result <- tryCatch({
     cli_alert_info("Initializing bulk upload module...")
-    result <- bulk_upload_server("bulk_upload", data_refresh_trigger, filtered_data, reactive({ login_result$user_display_name() }))
+    result <- bulk_upload_server("bulk_upload", data_refresh_trigger, filtered_data, reactive({ login_result$user() }))
     cli_alert_success("Bulk upload module initialized successfully")
     result
   }, error = function(e) {
