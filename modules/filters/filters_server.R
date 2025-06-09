@@ -43,7 +43,8 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
           (!is.null(input$risico_max) && input$risico_max > 0),
         hoedanigheid_partij = !is.null(input$hoedanigheid_partij) && length(input$hoedanigheid_partij) > 0,
         type_wederpartij = !is.null(input$type_wederpartij) && length(input$type_wederpartij) > 0,
-        reden_inzet = !is.null(input$reden_inzet) && length(input$reden_inzet) > 0
+        reden_inzet = !is.null(input$reden_inzet) && length(input$reden_inzet) > 0,
+        aansprakelijkheid = !is.null(input$aansprakelijkheid) && nchar(input$aansprakelijkheid) > 0
       )
     })
     
@@ -183,13 +184,54 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
       # Apply filters step by step
       filtered <- data_with_directies
       
-      # Text search in zaak_id and zaakaanduiding
+      # Text search in all text fields AND dropdown display names
       if (!is.null(input$search_text) && !is.na(input$search_text) && nchar(input$search_text) > 0) {
         search_term <- tolower(input$search_text)
+        
+        # Helper function to get display name for dropdown search
+        get_display_name_for_search <- function(category, value) {
+          if (is.na(value) || value == "") return("")
+          tryCatch({
+            get_weergave_naam_cached(category, value)
+          }, error = function(e) {
+            return(as.character(value))  # Fallback to original value
+          })
+        }
+        
         filtered <- filtered %>%
           filter(
+            # Basis tekstvelden
             grepl(search_term, tolower(ifelse(is.na(zaak_id), "", zaak_id)), fixed = TRUE) |
-              grepl(search_term, tolower(ifelse(is.na(zaakaanduiding), "", zaakaanduiding)), fixed = TRUE)
+              grepl(search_term, tolower(ifelse(is.na(zaakaanduiding), "", zaakaanduiding)), fixed = TRUE) |
+              # Organisatie velden
+              grepl(search_term, tolower(ifelse(is.na(proza_link), "", proza_link)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(wjz_mt_lid), "", wjz_mt_lid)), fixed = TRUE) |
+              # Financiële tekstvelden
+              grepl(search_term, tolower(ifelse(is.na(kostenplaats), "", kostenplaats)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(intern_ordernummer), "", intern_ordernummer)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(grootboekrekening), "", grootboekrekening)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(budgetcode), "", budgetcode)), fixed = TRUE) |
+              # Advocatuur velden
+              grepl(search_term, tolower(ifelse(is.na(advocaat), "", advocaat)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(adv_kantoor), "", adv_kantoor)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(adv_kantoor_contactpersoon), "", adv_kantoor_contactpersoon)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(budget_beleid), "", budget_beleid)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(advies_vertegenw_bestuursR), "", advies_vertegenw_bestuursR)), fixed = TRUE) |
+              # Overige tekstvelden
+              grepl(search_term, tolower(ifelse(is.na(locatie_formulier), "", locatie_formulier)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(contactpersoon), "", contactpersoon)), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(opmerkingen), "", opmerkingen)), fixed = TRUE) |
+              # Dropdown weergave namen (Nederlandse labels)
+              grepl(search_term, tolower(sapply(type_dienst, function(x) get_display_name_for_search("type_dienst", x))), fixed = TRUE) |
+              grepl(search_term, tolower(sapply(type_procedure, function(x) get_display_name_for_search("type_procedure", x))), fixed = TRUE) |
+              grepl(search_term, tolower(sapply(rechtsgebied, function(x) get_display_name_for_search("rechtsgebied", x))), fixed = TRUE) |
+              grepl(search_term, tolower(sapply(hoedanigheid_partij, function(x) get_display_name_for_search("hoedanigheid_partij", x))), fixed = TRUE) |
+              grepl(search_term, tolower(sapply(type_wederpartij, function(x) get_display_name_for_search("type_wederpartij", x))), fixed = TRUE) |
+              grepl(search_term, tolower(sapply(reden_inzet, function(x) get_display_name_for_search("reden_inzet", x))), fixed = TRUE) |
+              grepl(search_term, tolower(sapply(status_zaak, function(x) get_display_name_for_search("status_zaak", x))), fixed = TRUE) |
+              grepl(search_term, tolower(ifelse(is.na(aansprakelijkheid), "", aansprakelijkheid)), fixed = TRUE) |
+              # Directies (comma-separated values, zoek in display names)
+              grepl(search_term, tolower(ifelse(is.na(directies), "", directies)), fixed = TRUE)
           )
       }
       
@@ -226,6 +268,17 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
       filtered <- apply_dropdown_filter(filtered, input$hoedanigheid_partij, "hoedanigheid_partij")
       filtered <- apply_dropdown_filter(filtered, input$type_wederpartij, "type_wederpartij")
       filtered <- apply_dropdown_filter(filtered, input$reden_inzet, "reden_inzet")
+      
+      # Aansprakelijkheid filter (JA/NEE/NA values)
+      if (!is.null(input$aansprakelijkheid) && nchar(input$aansprakelijkheid) > 0) {
+        if (input$aansprakelijkheid == "__NA__") {
+          # Filter for NA values
+          filtered <- filtered %>% filter(is.na(aansprakelijkheid))
+        } else {
+          # Filter for specific value (JA or NEE)
+          filtered <- filtered %>% filter(aansprakelijkheid == input$aansprakelijkheid)
+        }
+      }
       
       # Date range filter
       if (!is.null(input$datum_range)) {

@@ -527,6 +527,42 @@ observeEvent(input$zichtbare_kolommen)  # Data extractie werkt via values
 8. Status
 9. *(Laatst Gewijzigd verwijderd uit standaard)*
 
+## ✅ VOLTOOIDE UI OPTIMALISATIES
+
+### **🔧 DataTable Sortering Verbeteringen** ✅ VOLTOOID
+- ✅ **Hidden Sort Columns**: Toegevoegd voor datum en numerieke velden
+- ✅ **Datum Kolommen**: Datum Aanmaak en Deadline sorteren nu chronologisch
+- ✅ **Numerieke Kolommen**: Looptijd en Tijd tot Deadline sorteren numeriek
+- ✅ **DataTables orderData**: Zichtbare kolommen gebruiken hidden kolommen voor sortering
+- ✅ **User Experience**: Behoud van mooie formatting met correcte sortering
+
+#### **Technische Implementatie:**
+```r
+# Hidden sort columns toegevoegd
+datum_aanmaak_sort = as.numeric(as.Date(`Datum Aanmaak`))
+deadline_sort = as.numeric(as.Date(Deadline))
+looptijd_sort = `Looptijd (dagen)`  # Originele numerieke waarde
+tijd_tot_deadline_sort = `Tijd tot Deadline`  # Originele numerieke waarde
+
+# DataTables configuratie
+columnDefs = list(
+  list(targets = datum_display_col, orderData = datum_sort_col),
+  list(targets = hidden_sort_cols, visible = FALSE)
+)
+```
+
+### **🔍 Filter Systeem Uitbreidingen** ✅ VOLTOOID
+- ✅ **Aansprakelijkheid Filter**: Toegevoegd aan sidebar (JA/NEE/Geen waarde)
+- ✅ **Tekst Zoekfunctie**: Uitgebreid naar alle 13+ tekstvelden
+- ✅ **Dropdown Zoeken**: Zoekt nu ook in Nederlandse weergave namen van dropdowns
+- ✅ **Complete Coverage**: Alle database velden doorzoekbaar via tekst zoekfunctie
+
+### **📊 Excel Export Optimalisatie** ✅ VOLTOOID
+- ✅ **Volledige Velden**: Van 13 → 30+ velden in zaakbeheer export
+- ✅ **Bulk Upload Consistency**: Identieke functionaliteit als template export
+- ✅ **Nederlandse Kolomnamen**: Professionele weergave voor gebruikers
+- ✅ **Performance**: Gebruikt cached dropdown conversies
+
 ## 🔮 VOLGENDE PRIORITEITEN
 
 ### **Lage Prioriteit:**

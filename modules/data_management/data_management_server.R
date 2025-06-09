@@ -211,35 +211,47 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       if (nrow(result_data) > 0) {
         kolom_namen <- names(result_data)
         
-        # Datum formatting
+        # Datum formatting - keep original for sorting, add formatted for display
         if ("Datum Aanmaak" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(`Datum Aanmaak` = format_date_nl(`Datum Aanmaak`))
+            mutate(
+              datum_aanmaak_sort = as.numeric(as.Date(`Datum Aanmaak`)),  # Hidden sort column
+              `Datum Aanmaak` = format_date_nl(`Datum Aanmaak`)
+            )
         }
         
-        # Deadline formatting
+        # Deadline formatting - keep original for sorting, add formatted for display
         if ("Deadline" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(Deadline = ifelse(is.na(Deadline), "-", format_date_nl(as.Date(Deadline))))
+            mutate(
+              deadline_sort = ifelse(is.na(Deadline), NA_real_, as.numeric(as.Date(Deadline))),  # Hidden sort column
+              Deadline = ifelse(is.na(Deadline), "-", format_date_nl(as.Date(Deadline)))
+            )
         }
         
-        # Looptijd formatting
+        # Looptijd formatting - keep original for sorting, add formatted for display
         if ("Looptijd (dagen)" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(`Looptijd (dagen)` = paste0(`Looptijd (dagen)`, " dagen"))
+            mutate(
+              looptijd_sort = `Looptijd (dagen)`,  # Hidden sort column
+              `Looptijd (dagen)` = paste0(`Looptijd (dagen)`, " dagen")
+            )
         }
         
-        # Tijd tot deadline formatting
+        # Tijd tot deadline formatting - keep original for sorting, add formatted for display
         if ("Tijd tot Deadline" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(`Tijd tot Deadline` = ifelse(
-              is.na(`Tijd tot Deadline`), "-", 
-              ifelse(`Tijd tot Deadline` < 0, paste0(abs(`Tijd tot Deadline`), " dagen te laat"),
-                ifelse(`Tijd tot Deadline` == 0, "Vandaag", 
-                  ifelse(`Tijd tot Deadline` > 0, paste0(`Tijd tot Deadline`, " dagen"), "-")
+            mutate(
+              tijd_tot_deadline_sort = `Tijd tot Deadline`,  # Hidden sort column
+              `Tijd tot Deadline` = ifelse(
+                is.na(`Tijd tot Deadline`), "-", 
+                ifelse(`Tijd tot Deadline` < 0, paste0(abs(`Tijd tot Deadline`), " dagen te laat"),
+                  ifelse(`Tijd tot Deadline` == 0, "Vandaag", 
+                    ifelse(`Tijd tot Deadline` > 0, paste0(`Tijd tot Deadline`, " dagen"), "-")
+                  )
                 )
               )
-            ))
+            )
         }
         
         # Convert database values to display names (OPTIMIZED - bulk conversion)
@@ -315,6 +327,68 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       # Get colors for all dropdown categories
       alle_kleuren <- get_dropdown_kleuren()
       
+      # Define column types for proper sorting
+      column_defs <- list(
+        list(className = "dt-left", targets = "_all")  # Left align all columns
+      )
+      
+      # Find column indices for special sorting (0-based for DataTables)
+      col_names <- names(display_data)
+      hidden_columns <- c()  # Track hidden sort columns
+      
+      for (i in 1:length(col_names)) {
+        col_name <- col_names[i]
+        
+        # Hide sort columns
+        if (col_name %in% c("datum_aanmaak_sort", "deadline_sort", "looptijd_sort", "tijd_tot_deadline_sort")) {
+          hidden_columns <- c(hidden_columns, i - 1)  # Track for hiding
+        }
+        # Use hidden columns for sorting display columns
+        else if (col_name == "Datum Aanmaak" && "datum_aanmaak_sort" %in% col_names) {
+          sort_col_index <- which(col_names == "datum_aanmaak_sort") - 1
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # Display column index
+            orderData = sort_col_index  # Sort using hidden column
+          )
+        }
+        else if (col_name == "Deadline" && "deadline_sort" %in% col_names) {
+          sort_col_index <- which(col_names == "deadline_sort") - 1
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # Display column index
+            orderData = sort_col_index  # Sort using hidden column
+          )
+        }
+        else if (col_name == "Looptijd (dagen)" && "looptijd_sort" %in% col_names) {
+          sort_col_index <- which(col_names == "looptijd_sort") - 1
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # Display column index
+            orderData = sort_col_index  # Sort using hidden column
+          )
+        }
+        else if (col_name == "Tijd tot Deadline" && "tijd_tot_deadline_sort" %in% col_names) {
+          sort_col_index <- which(col_names == "tijd_tot_deadline_sort") - 1
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # Display column index
+            orderData = sort_col_index  # Sort using hidden column
+          )
+        }
+        # Numeric columns should sort as numbers
+        else if (col_name %in% c("Budget WJZ (€)", "Budget Andere Directie (€)", "Financieel Risico (€)")) {
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # 0-based index
+            type = "num"
+          )
+        }
+      }
+      
+      # Hide sort columns
+      if (length(hidden_columns) > 0) {
+        column_defs[[length(column_defs) + 1]] <- list(
+          targets = hidden_columns,
+          visible = FALSE
+        )
+      }
+      
       # Create DataTable with background colors
       dt <- DT::datatable(
         display_data,
@@ -325,9 +399,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           scrollX = TRUE,
           autoWidth = FALSE,
           dom = 'frtip',  # Simple layout: filter, table, info, pagination
-          columnDefs = list(
-            list(className = "dt-left", targets = "_all")  # Left align all columns
-          ),
+          columnDefs = column_defs,
           language = list(
             search = "Zoeken:",
             lengthMenu = "Toon _MENU_ items per pagina",
@@ -1427,21 +1499,50 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               Looptijd = as.numeric(difftime(Sys.Date(), datum_aanmaak, units = "days"))
             ) %>%
             select(
+              # Basis identificatie velden
               "Zaak ID" = zaak_id,
               "Datum Aanmaak" = datum_aanmaak,
               "Deadline" = deadline,
               "Looptijd (dagen)" = Looptijd,
               "Zaakaanduiding" = zaakaanduiding,
+              
+              # Juridische classificatie
               "Type Dienst" = type_dienst,
+              "Type Procedure" = type_procedure,
               "Rechtsgebied" = rechtsgebied,
+              "Hoedanigheid Partij" = hoedanigheid_partij,
+              "Type Wederpartij" = type_wederpartij,
+              "Reden Inzet" = reden_inzet,
+              "Aansprakelijkheid" = aansprakelijkheid,
               "Status" = status_zaak,
+              
+              # Directie en contactgegevens
               "Aanvragende Directie" = `Aanvragende Directie`,
+              "ProZa-link" = proza_link,
+              "WJZ MT Lid" = wjz_mt_lid,
+              "Contactpersoon" = contactpersoon,
+              
+              # Advocatuur
               "Advocaat" = advocaat,
               "Advocatenkantoor" = adv_kantoor,
+              "Advocatenkantoor Contactpersoon" = adv_kantoor_contactpersoon,
+              "Advies Vertegenwoordiging Bestuursrecht" = advies_vertegenw_bestuursR,
+              
+              # Financiële gegevens
               "Budget WJZ (€)" = la_budget_wjz,
               "Budget Andere Directie (€)" = budget_andere_directie,
+              "Kostenplaats" = kostenplaats,
+              "Intern Ordernummer" = intern_ordernummer,
+              "Grootboekrekening" = grootboekrekening,
+              "Budgetcode" = budgetcode,
               "Financieel Risico (€)" = financieel_risico,
+              "Budget Beleid" = budget_beleid,
+              
+              # Administratieve gegevens
+              "Locatie Formulier" = locatie_formulier,
               "Opmerkingen" = opmerkingen,
+              
+              # Metadata
               "Aangemaakt Door" = aangemaakt_door,
               "Laatst Gewijzigd" = laatst_gewijzigd,
               "Gewijzigd Door" = gewijzigd_door
@@ -1459,6 +1560,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               # Convert database values to display names for readability
               `Type Dienst` = sapply(`Type Dienst`, function(x) if(is.na(x)) "" else get_weergave_naam("type_dienst", x)),
               Rechtsgebied = sapply(Rechtsgebied, function(x) if(is.na(x)) "" else get_weergave_naam("rechtsgebied", x)),
+              `Hoedanigheid Partij` = sapply(`Hoedanigheid Partij`, function(x) if(is.na(x)) "" else get_weergave_naam("hoedanigheid_partij", x)),
+              `Type Wederpartij` = sapply(`Type Wederpartij`, function(x) if(is.na(x)) "" else get_weergave_naam("type_wederpartij", x)),
+              `Reden Inzet` = sapply(`Reden Inzet`, function(x) if(is.na(x)) "" else get_weergave_naam("reden_inzet", x)),
               Status = sapply(Status, function(x) if(is.na(x)) "" else get_weergave_naam("status_zaak", x)),
               
               # Format currency values
@@ -1466,9 +1570,22 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               `Budget Andere Directie (€)` = ifelse(is.na(`Budget Andere Directie (€)`) | `Budget Andere Directie (€)` == 0, "", as.numeric(`Budget Andere Directie (€)`)),
               `Financieel Risico (€)` = ifelse(is.na(`Financieel Risico (€)`) | `Financieel Risico (€)` == 0, "", as.numeric(`Financieel Risico (€)`)),
               
-              # Clean up other fields
+              # Clean up text fields
+              `Type Procedure` = ifelse(is.na(`Type Procedure`), "", `Type Procedure`),
+              Aansprakelijkheid = ifelse(is.na(Aansprakelijkheid), "", Aansprakelijkheid),
+              `ProZa-link` = ifelse(is.na(`ProZa-link`), "", `ProZa-link`),
+              `WJZ MT Lid` = ifelse(is.na(`WJZ MT Lid`), "", `WJZ MT Lid`),
+              Contactpersoon = ifelse(is.na(Contactpersoon), "", Contactpersoon),
               Advocaat = ifelse(is.na(Advocaat), "", Advocaat),
               Advocatenkantoor = ifelse(is.na(Advocatenkantoor), "", Advocatenkantoor),
+              `Advocatenkantoor Contactpersoon` = ifelse(is.na(`Advocatenkantoor Contactpersoon`), "", `Advocatenkantoor Contactpersoon`),
+              `Advies Vertegenwoordiging Bestuursrecht` = ifelse(is.na(`Advies Vertegenwoordiging Bestuursrecht`), "", `Advies Vertegenwoordiging Bestuursrecht`),
+              Kostenplaats = ifelse(is.na(Kostenplaats), "", Kostenplaats),
+              `Intern Ordernummer` = ifelse(is.na(`Intern Ordernummer`), "", `Intern Ordernummer`),
+              Grootboekrekening = ifelse(is.na(Grootboekrekening), "", Grootboekrekening),
+              Budgetcode = ifelse(is.na(Budgetcode), "", Budgetcode),
+              `Budget Beleid` = ifelse(is.na(`Budget Beleid`), "", `Budget Beleid`),
+              `Locatie Formulier` = ifelse(is.na(`Locatie Formulier`), "", `Locatie Formulier`),
               Opmerkingen = ifelse(is.na(Opmerkingen), "", Opmerkingen),
               `Aangemaakt Door` = ifelse(is.na(`Aangemaakt Door`), "", `Aangemaakt Door`),
               `Gewijzigd Door` = ifelse(is.na(`Gewijzigd Door`), "", `Gewijzigd Door`)
