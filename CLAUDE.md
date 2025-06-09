@@ -480,6 +480,17 @@ bulk_get_weergave_namen()            # Voor bulk conversies
 
 ## ✅ VOLTOOIDE FEATURES
 
+### **📋 Formulieren Uitbreiding met Alle Database Velden** ✅ VOLTOOID
+- ✅ **8 Ontbrekende velden toegevoegd** aan nieuwe zaak en bewerk zaak formulieren:
+  - **6 Dropdown velden**: type_procedure, hoedanigheid_partij, type_wederpartij, reden_inzet, civiel_bestuursrecht, aansprakelijkheid
+  - **2 Tekstvelden**: adv_kantoor_contactpersoon, advies_vertegenw_bestuursR
+- ✅ **Dropdown integratie**: Alle nieuwe dropdown velden gebruiken bestaande dropdown-beheer systeem
+- ✅ **Data processing**: Beide formulieren verwerken en slaan alle velden correct op
+- ✅ **UI/UX**: Logische plaatsing van velden in formulieren met consistente styling
+- ✅ **Dropdown loading fix**: Nieuwe categorieën toegevoegd aan dropdown_choices loading
+- ✅ **Package conflict fix**: colourInput calls expliciet aangeroepen via colourpicker::colourInput
+- ✅ **Volledigheid**: Alle database velden (behalve automatische) nu beschikbaar in UI
+
 ### **🔄 Zaakaanduiding Implementatie** ✅ VOLTOOID
 - ✅ **Database**: 'Omschrijving' kolom verwijderd, alleen 'Zaakaanduiding' gebruikt
 - ✅ **Formulieren**: Alle nieuwe/bewerk formulieren gebruiken 'Zaakaanduiding'

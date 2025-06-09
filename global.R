@@ -20,7 +20,6 @@ library(tidyr)
 library(DT)
 library(shinyWidgets)
 library(shinycssloaders)
-library(colourpicker)
 library(sortable)
 
 # Visualization
@@ -43,6 +42,9 @@ library(cli)
 
 # JavaScript functions
 library(shinyjs)
+
+# Color picker (load after shinyjs to override colourInput)
+library(colourpicker)
 
 # =============================================================================
 # GLOBAL CONFIGURATION
