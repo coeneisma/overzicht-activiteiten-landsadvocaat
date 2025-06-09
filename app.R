@@ -1,4 +1,5 @@
 # app.R - Dashboard Landsadvocaat 
+
 # ================================
 
 # Main entry point for the Shiny application

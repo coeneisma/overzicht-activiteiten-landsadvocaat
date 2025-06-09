@@ -98,6 +98,18 @@ ui <- div(
         )
       ),
       
+      # Bulk Upload tab
+      nav_panel(
+        title = "Bulk Upload",
+        icon = icon("upload"),
+        value = "tab_bulk_upload",
+        
+        div(
+          class = "container-fluid p-4",
+          bulk_upload_ui("bulk_upload")
+        )
+      ),
+      
       # Instellingen tab (admin only)
       nav_panel(
         title = "Instellingen",

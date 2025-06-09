@@ -32,6 +32,9 @@ library(RColorBrewer)
 library(readxl)
 library(writexl)
 
+# String matching
+library(stringdist)
+
 # Security
 library(digest)
 
@@ -199,6 +202,96 @@ app_theme <- bs_add_rules(app_theme,
   .modal-open .sidebar {
     filter: none !important;
   }
+  
+  /* Bulk Upload Wizard Styling */
+  .progress-wizard {
+    padding: 1rem 0;
+  }
+  
+  .wizard-step {
+    text-align: center;
+    flex: 1;
+    position: relative;
+  }
+  
+  .wizard-step-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #e9ecef;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin: 0 auto 0.5rem auto;
+    transition: all 0.3s ease;
+  }
+  
+  .wizard-step-circle.active {
+    background-color: #154273 !important;
+    color: white !important;
+  }
+  
+  .wizard-step-circle.completed {
+    background-color: #28a745 !important;
+    color: white !important;
+  }
+  
+  .wizard-step-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    font-weight: 500;
+  }
+  
+  .wizard-step.active .wizard-step-label {
+    color: #154273 !important;
+    font-weight: 600;
+  }
+  
+  .wizard-step.completed .wizard-step-label {
+    color: #28a745 !important;
+    font-weight: 600;
+  }
+  
+  /* Bulk Upload Corrections Layout Fixes */
+  .corrections-card .selectize-dropdown {
+    z-index: 1050 !important;
+  }
+  
+  .corrections-card .form-check {
+    margin-bottom: 0.5rem;
+  }
+  
+  .corrections-card .d-flex.align-items-center {
+    gap: 1rem;
+  }
+  
+  .corrections-card .selectize-control {
+    margin-bottom: 0;
+  }
+  
+  /* Prevent card overflow issues - key fix */
+  .corrections-card .card-body {
+    overflow: visible !important;
+  }
+  
+  .corrections-container {
+    overflow: visible !important;
+  }
+  
+  /* Ensure dropdowns appear above everything */
+  .corrections-card .selectize-dropdown,
+  .corrections-card .bootstrap-select .dropdown-menu {
+    position: absolute !important;
+    z-index: 1060 !important;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+  }
+  
+  /* Fix conditional panel positioning */
+  .corrections-card .shiny-input-container {
+    position: static !important;
+  }
   ")
 
 # =============================================================================
@@ -360,6 +453,16 @@ tryCatch({
   message("✓ Analyse module loaded successfully")
 }, error = function(e) {
   warning("❌ Error loading analyse module: ", e$message)
+  print(e)
+})
+
+# Bulk Upload module
+tryCatch({
+  source("modules/bulk_upload/bulk_upload_ui.R")
+  source("modules/bulk_upload/bulk_upload_server.R")
+  message("✓ Bulk Upload module loaded successfully")
+}, error = function(e) {
+  warning("❌ Error loading bulk upload module: ", e$message)
   print(e)
 })
 

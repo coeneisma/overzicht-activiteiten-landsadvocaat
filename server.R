@@ -196,6 +196,23 @@ server <- function(input, output, session) {
   })
   
   # =========================================================================
+  # BULK UPLOAD MODULE
+  # =========================================================================
+  
+  # Initialize bulk upload module
+  bulk_upload_result <- tryCatch({
+    cli_alert_info("Initializing bulk upload module...")
+    result <- bulk_upload_server("bulk_upload", data_refresh_trigger, filtered_data, reactive({ login_result$user_display_name() }))
+    cli_alert_success("Bulk upload module initialized successfully")
+    result
+  }, error = function(e) {
+    cli_alert_danger("Error initializing bulk upload module: {e$message}")
+    cat("Full error details:\n")
+    print(e)
+    NULL
+  })
+  
+  # =========================================================================
   # MAIN NAVIGATION ACTIONS
   # =========================================================================
   

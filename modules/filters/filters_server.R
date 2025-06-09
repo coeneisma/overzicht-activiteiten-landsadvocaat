@@ -99,9 +99,11 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
             min_date <- min(data$datum_aanmaak, na.rm = TRUE)
             max_date <- max(data$datum_aanmaak, na.rm = TRUE)
             
+            # Set end date to today (to include all cases up to now)
+            end_date <- Sys.Date()  # Always use today as end date
             updateDateRangeInput(session, "datum_range", 
                                  start = min_date, 
-                                 end = max_date)
+                                 end = end_date)
           }
         }
         
@@ -350,7 +352,9 @@ filters_server <- function(id, raw_data, data_refresh_trigger, dropdown_refresh_
       if (nrow(data) > 0 && !is.null(data$datum_aanmaak)) {
         min_date <- min(data$datum_aanmaak, na.rm = TRUE)
         max_date <- max(data$datum_aanmaak, na.rm = TRUE)
-        updateDateRangeInput(session, "datum_range", start = min_date, end = max_date)
+        # Reset to today as end date
+        end_date <- Sys.Date()  # Always use today
+        updateDateRangeInput(session, "datum_range", start = min_date, end = end_date)
       }
       
       # Reset numeric inputs
