@@ -126,6 +126,51 @@ The application uses Bootstrap 5 with OCW government branding. Maintain professi
 - Focus on clear, concise descriptions of what was changed and why
 - Use conventional commit format when appropriate (feat:, fix:, docs:, etc.)
 
+## Database Development Workflow (VERPLICHT)
+
+### Bij ELKE Database Wijziging:
+1. **Direct wijzigen**: Pas database aan in development
+2. **Migration script maken**: ALTIJD een migration script schrijven
+3. **Test migration**: Draai script op schone database kopie
+4. **Commit samen**: Migration + code changes in één commit
+
+### Migration Script Template:
+```sql
+-- migrations/XXX_beschrijving_wijziging.sql
+-- Date: YYYY-MM-DD
+-- Description: [korte beschrijving van de wijziging]
+
+-- SQL commands hier
+ALTER TABLE ...
+```
+
+### Migration Script Naamgeving:
+- Gebruik 3-cijferige prefix: `001_`, `002_`, etc.
+- Beschrijvende naam na prefix: `add_column_x.sql`
+- Voorbeeld: `002_add_email_notifications.sql`
+
+### Test Procedure:
+```r
+# Test migration lokaal
+source("migrations/migrate.R")
+test_migration("migrations/002_nieuwe_feature.sql")
+
+# Of dry-run voor alle pending migrations
+run_migrations(dry_run = TRUE)
+```
+
+### BELANGRIJK:
+- ❌ **GEEN** database wijziging zonder migration script
+- ✅ **ALTIJD** testen op backup/kopie database eerst
+- ✅ **ALTIJD** backup maken automatisch bij migration
+- 📝 **Development helper**: `remind_migration()` functie beschikbaar
+
+### Productie Deployment:
+1. Database wordt **NIET** meegecommit (staat in .gitignore)
+2. Migration scripts worden **WEL** meegecommit
+3. Bij `git pull` op productie draaien migrations automatisch
+4. Backups worden automatisch gemaakt voor elke migration
+
 ## Technology Stack
 
 **Core**: R Shiny with bslib (Bootstrap 5), DT for tables, shinyWidgets for enhanced UI

@@ -2,3 +2,14 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# Database files
+data/landsadvocaat.db
+data/*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+backups/
+*.backup
+*.bak
