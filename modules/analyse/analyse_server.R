@@ -18,7 +18,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
   moduleServer(id, function(input, output, session) {
     
     # ========================================================================
-    # REACTIVE VALUES - Use filtered data from filter module
+    # REACTIVE VALUES & DROPDOWN CHOICES
     # ========================================================================
     
     # Clear dropdown cache when settings change for real-time updates  
@@ -27,8 +27,45 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
         # Clear the dropdown cache to force fresh display names in analysis
         clear_dropdown_cache()
         cli_alert_info("Dropdown cache cleared due to settings change - analyse module will show updated display names")
+        
+        # Update dropdown choices when settings change
+        update_analyse_dropdown_choices()
       }
     }, ignoreInit = TRUE)
+    
+    # Function to update analyse dropdown choices
+    update_analyse_dropdown_choices <- function() {
+      # Get available dropdown categories from database
+      con <- get_db_connection()
+      on.exit(close_db_connection(con))
+      
+      # Get categories with readable names
+      category_choices <- list(
+        "Type Dienst" = "type_dienst",
+        "Rechtsgebied" = "rechtsgebied",
+        "Status" = "status_zaak",
+        "Aanvragende Directie" = "aanvragende_directie",
+        "Type Procedure" = "type_procedure",
+        "Hoedanigheid Partij" = "hoedanigheid_partij",
+        "Type Wederpartij" = "type_wederpartij",
+        "Reden Inzet" = "reden_inzet",
+        "Aansprakelijkheid" = "aansprakelijkheid"
+      )
+      
+      updateSelectInput(
+        session,
+        "analyse_split_var",
+        choices = category_choices,
+        selected = "type_dienst"
+      )
+    }
+    
+    # Initialize dropdown choices on module load
+    observe({
+      # Only load when analyse tab is active (lazy loading)
+      req(main_navbar_input() == "tab_analyse")
+      update_analyse_dropdown_choices()
+    })
     
     # Data is already filtered by the filter module, just ensure deleted cases are excluded
     # Add debouncing + lazy loading for better performance + react to dropdown changes
@@ -144,7 +181,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
     
     output$looptijd_plot <- renderPlotly({
       data <- looptijd_data()
-      split_var <- input$looptijd_split_var
+      split_var <- input$analyse_split_var
       
       if (is.null(data) || nrow(data) == 0 || is.null(split_var)) {
         # Empty plot
@@ -172,8 +209,13 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
         ) %>%
         arrange(desc(gem_looptijd))
       
-      # Create bar plot
-      p <- ggplot(summary_data, aes(x = reorder(categorie, gem_looptijd), y = gem_looptijd)) +
+      # Create bar plot with custom tooltip
+      p <- ggplot(summary_data, aes(x = reorder(categorie, gem_looptijd), y = gem_looptijd,
+                                    # Custom tooltip text
+                                    text = paste("Categorie:", categorie,
+                                                 "<br>Gem. looptijd:", gem_looptijd, "dagen",
+                                                 "<br>Aantal zaken:", aantal_zaken,
+                                                 "<br>Mediaan:", mediaan, "dagen"))) +
         geom_col(fill = "#154273", alpha = 0.8) +
         geom_text(aes(label = paste0(gem_looptijd, " dagen\n(", aantal_zaken, " zaken)")), 
                   hjust = -0.1, size = 3) +
@@ -190,7 +232,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
           panel.grid.minor = element_blank()
         )
       
-      ggplotly(p, tooltip = c("x", "y")) %>%
+      ggplotly(p, tooltip = "text") %>%
         layout(showlegend = FALSE)
     })
     
@@ -200,7 +242,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
     
     output$verdeling_plot <- renderPlotly({
       data <- analysis_data()
-      split_var <- input$verdeling_split_var
+      split_var <- input$analyse_split_var
       
       if (is.null(data) || nrow(data) == 0 || is.null(split_var)) {
         # Empty plot
@@ -239,6 +281,14 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
             split_var == "reden_inzet" ~ {
               names <- bulk_get_weergave_namen("reden_inzet", reden_inzet)
               ifelse(is.na(reden_inzet), "Onbekend", names)
+            },
+            split_var == "type_procedure" ~ {
+              names <- bulk_get_weergave_namen("type_procedure", type_procedure)
+              ifelse(is.na(type_procedure), "Onbekend", names)
+            },
+            split_var == "aansprakelijkheid" ~ {
+              names <- bulk_get_weergave_namen("aansprakelijkheid", aansprakelijkheid)
+              ifelse(is.na(aansprakelijkheid), "Onbekend", names)
             },
             TRUE ~ as.character(!!sym(split_var))
           )
@@ -282,7 +332,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
     # Looptijd detail table
     output$looptijd_table <- DT::renderDataTable({
       data <- looptijd_data()
-      split_var <- input$looptijd_split_var
+      split_var <- input$analyse_split_var
       
       if (is.null(data) || nrow(data) == 0) {
         return(DT::datatable(
@@ -327,7 +377,7 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
     # Verdeling detail table
     output$verdeling_table <- DT::renderDataTable({
       data <- analysis_data()
-      split_var <- input$verdeling_split_var
+      split_var <- input$analyse_split_var
       
       if (is.null(data) || nrow(data) == 0) {
         return(DT::datatable(
@@ -365,6 +415,14 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
             split_var == "reden_inzet" ~ {
               names <- bulk_get_weergave_namen("reden_inzet", reden_inzet)
               ifelse(is.na(reden_inzet), "Onbekend", names)
+            },
+            split_var == "type_procedure" ~ {
+              names <- bulk_get_weergave_namen("type_procedure", type_procedure)
+              ifelse(is.na(type_procedure), "Onbekend", names)
+            },
+            split_var == "aansprakelijkheid" ~ {
+              names <- bulk_get_weergave_namen("aansprakelijkheid", aansprakelijkheid)
+              ifelse(is.na(aansprakelijkheid), "Onbekend", names)
             },
             TRUE ~ as.character(!!sym(split_var))
           )
@@ -457,8 +515,8 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
           
           if (!is.null(looptijd_data_export) && nrow(looptijd_data_export) > 0) {
             
-            # Get current split variable for looptijd
-            split_var <- if(is.null(input$looptijd_split_var)) "type_dienst" else input$looptijd_split_var
+            # Get current split variable from shared analyse dropdown
+            split_var <- if(is.null(input$analyse_split_var)) "type_dienst" else input$analyse_split_var
             display_col <- paste0(split_var, "_display")
             
             if (!display_col %in% names(looptijd_data_export)) {
@@ -486,8 +544,8 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
           # TAB 3: VERDELING ANALYSE DATA  
           # =====================================================================
           
-          # Get current split variable for verdeling
-          verdeling_split_var <- if(is.null(input$verdeling_split_var)) "rechtsgebied" else input$verdeling_split_var
+          # Get current split variable from shared analyse dropdown
+          verdeling_split_var <- if(is.null(input$analyse_split_var)) "type_dienst" else input$analyse_split_var
           
           # Convert database values to display names using bulk operations
           data_with_display <- data %>%
@@ -517,6 +575,14 @@ analyse_server <- function(id, filtered_data, raw_data, data_refresh_trigger, cu
                 verdeling_split_var == "reden_inzet" ~ {
                   names <- bulk_get_weergave_namen("reden_inzet", reden_inzet)
                   ifelse(is.na(reden_inzet), "Onbekend", names)
+                },
+                verdeling_split_var == "type_procedure" ~ {
+                  names <- bulk_get_weergave_namen("type_procedure", type_procedure)
+                  ifelse(is.na(type_procedure), "Onbekend", names)
+                },
+                verdeling_split_var == "aansprakelijkheid" ~ {
+                  names <- bulk_get_weergave_namen("aansprakelijkheid", aansprakelijkheid)
+                  ifelse(is.na(aansprakelijkheid), "Onbekend", names)
                 },
                 TRUE ~ as.character(!!sym(verdeling_split_var))
               )

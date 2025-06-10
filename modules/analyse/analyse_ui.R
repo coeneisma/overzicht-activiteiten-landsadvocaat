@@ -15,26 +15,48 @@ analyse_ui <- function(id) {
   tagList(
     
     # ==========================================================================
-    # ACTION BUTTONS
+    # ANALYSE VARIABELE SELECTOR & ACTION BUTTONS
     # ==========================================================================
     
     div(
-      class = "d-flex justify-content-end mb-4",
+      class = "row mb-3",
+      
+      # Analyse variabele selector
+      div(
+        class = "col-md-6 d-flex align-items-center",
+        div(
+          class = "me-3",
+          strong("Analyseer op:", class = "text-muted")
+        ),
+        div(
+          style = "flex: 1; max-width: 250px;",
+          selectInput(
+            ns("analyse_split_var"),
+            NULL,
+            choices = NULL,
+            selected = NULL,
+            width = "100%"
+          )
+        )
+      ),
       
       # Action buttons
       div(
-        class = "btn-group",
-        downloadButton(
-          ns("download_excel"),
-          "Export naar Excel",
-          class = "btn-success",
-          icon = icon("file-excel")
-        ),
-        actionButton(
-          ns("btn_refresh"),
-          "Ververs Data",
-          class = "btn-outline-primary",
-          icon = icon("sync-alt")
+        class = "col-md-6 d-flex justify-content-end align-items-start",
+        div(
+          class = "btn-group",
+          downloadButton(
+            ns("download_excel"),
+            "Export naar Excel",
+            class = "btn-success",
+            icon = icon("file-excel")
+          ),
+          actionButton(
+            ns("btn_refresh"),
+            "Ververs Data",
+            class = "btn-outline-primary",
+            icon = icon("sync-alt")
+          )
         )
       )
     ),
@@ -45,7 +67,7 @@ analyse_ui <- function(id) {
     # ==========================================================================
     
     div(
-      class = "row mb-4 mt-4",
+      class = "row mb-4",
       
       # Totaal aantal zaken
       div(
@@ -114,26 +136,8 @@ analyse_ui <- function(id) {
         # Looptijd analyse card
         card(
           card_header(
-            class = "d-flex justify-content-between align-items-center",
-            div(
-              h5("Looptijd Analyse", class = "mb-0"),
-              div(class = "small text-muted", "Gemiddelde looptijd per categorie")
-            ),
-            div(
-              selectInput(
-                ns("looptijd_split_var"),
-                NULL,
-                choices = list(
-                  "Type Dienst" = "type_dienst",
-                  "Rechtsgebied" = "rechtsgebied", 
-                  "Status" = "status_zaak",
-                  "Aanvragende Directie" = "aanvragende_directie",
-                  "Advocatenkantoor" = "adv_kantoor"
-                ),
-                selected = "type_dienst",
-                width = "200px"
-              )
-            )
+            h5("Looptijd Analyse", class = "mb-0"),
+            div(class = "small text-muted", "Gemiddelde looptijd per categorie")
           ),
           
           card_body(
@@ -153,27 +157,8 @@ analyse_ui <- function(id) {
         # Verdeling analyse card
         card(
           card_header(
-            class = "d-flex justify-content-between align-items-center",
-            div(
-              h5("Verdeling Analyse", class = "mb-0"),
-              div(class = "small text-muted", "Distributie van zaken")
-            ),
-            div(
-              selectInput(
-                ns("verdeling_split_var"),
-                NULL,
-                choices = list(
-                  "Type Dienst" = "type_dienst",
-                  "Rechtsgebied" = "rechtsgebied",
-                  "Status" = "status_zaak",
-                  "Aanvragende Directie" = "aanvragende_directie",
-                  "Type Wederpartij" = "type_wederpartij",
-                  "Hoedanigheid Partij" = "hoedanigheid_partij"
-                ),
-                selected = "rechtsgebied",
-                width = "200px"
-              )
-            )
+            h5("Verdeling Analyse", class = "mb-0"),
+            div(class = "small text-muted", "Distributie van zaken")
           ),
           
           card_body(
