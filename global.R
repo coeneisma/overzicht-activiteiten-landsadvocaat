@@ -20,7 +20,6 @@ library(tidyr)
 library(DT)
 library(shinyWidgets)
 library(shinycssloaders)
-library(colourpicker)
 library(sortable)
 
 # Visualization
@@ -44,6 +43,9 @@ library(cli)
 # JavaScript functions
 library(shinyjs)
 
+# Color picker (load after shinyjs to override colourInput)
+library(colourpicker)
+
 # =============================================================================
 # GLOBAL CONFIGURATION
 # =============================================================================
@@ -61,6 +63,23 @@ ALLOWED_FILE_TYPES <- c("xlsx", "xls", "csv")
 
 # Default filters
 DEFAULT_ITEMS_PER_PAGE <- 25
+
+# =============================================================================
+# DATABASE MIGRATIONS CHECK
+# =============================================================================
+
+# Run database migrations on startup
+if (file.exists("migrations/migrate.R")) {
+  tryCatch({
+    source("migrations/migrate.R")
+    # Alleen uitvoeren in productie modus (niet tijdens development)
+    if (!interactive() || Sys.getenv("RUN_MIGRATIONS") == "TRUE") {
+      suppressMessages(run_migrations())
+    }
+  }, error = function(e) {
+    warning("⚠️  Database migration check failed: ", e$message)
+  })
+}
 
 # =============================================================================
 # DATABASE FUNCTIONS

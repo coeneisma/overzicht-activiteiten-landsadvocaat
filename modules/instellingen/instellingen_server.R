@@ -807,7 +807,7 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
             
             # Kleur picker met "geen kleur" optie
             div(
-              colourInput(
+              colourpicker::colourInput(
                 session$ns("new_dropdown_kleur"),
                 "Kleur:",
                 value = "#FFFFFF",
@@ -1219,7 +1219,7 @@ instellingen_server <- function(id, current_user, is_admin, global_dropdown_refr
             # Kleur picker met "geen kleur" optie
             conditionalPanel(
               condition = "true",  # Altijd tonen voor nu
-              colourInput(
+              colourpicker::colourInput(
                 session$ns("edit_dropdown_kleur"),
                 "Kleur:",
                 value = ifelse(is.na(value_data$kleur) || value_data$kleur == "", "#FFFFFF", value_data$kleur),

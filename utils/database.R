@@ -7,6 +7,7 @@ library(RSQLite)
 library(dbplyr)
 library(dplyr)
 library(digest)
+library(readr)
 
 # Database configuratie
 DB_PATH <- "data/landsadvocaat.db"
@@ -1364,5 +1365,91 @@ get_zichtbare_kolommen <- function(gebruiker_id) {
     return(c("zaak_id", sorted_kolommen))
   } else {
     return("zaak_id")
+  }
+}
+
+# =============================================================================
+# DATABASE BACKUP & MIGRATION FUNCTIES
+# =============================================================================
+
+#' Maak backup van database
+#' @param backup_reason Optionele reden voor backup (bijv. "before_migration_005")
+create_database_backup <- function(backup_reason = NULL) {
+  # Zorg dat backups directory bestaat
+  if (!dir.exists("backups")) {
+    dir.create("backups", recursive = TRUE)
+  }
+  
+  # Genereer backup bestandsnaam
+  timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+  if (!is.null(backup_reason)) {
+    backup_file <- file.path("backups", paste0("backup_", timestamp, "_", backup_reason, ".db"))
+  } else {
+    backup_file <- file.path("backups", paste0("backup_", timestamp, ".db"))
+  }
+  
+  # Maak backup
+  if (file.exists(DB_PATH)) {
+    file.copy(DB_PATH, backup_file, overwrite = FALSE)
+    message("✅ Database backup gemaakt: ", backup_file)
+    return(backup_file)
+  } else {
+    warning("⚠️  Database bestand niet gevonden: ", DB_PATH)
+    return(NULL)
+  }
+}
+
+#' Herstel database van backup
+restore_database_from_backup <- function(backup_file) {
+  if (!file.exists(backup_file)) {
+    stop("❌ Backup bestand niet gevonden: ", backup_file)
+  }
+  
+  # Maak eerst een backup van huidige database
+  create_database_backup("before_restore")
+  
+  # Herstel backup
+  file.copy(backup_file, DB_PATH, overwrite = TRUE)
+  message("✅ Database hersteld van: ", backup_file)
+}
+
+#' Get current migration version
+get_current_migration_version <- function(con = NULL) {
+  close_con <- FALSE
+  if (is.null(con)) {
+    con <- get_db_connection()
+    close_con <- TRUE
+  }
+  
+  # Check if migrations table exists
+  if (!DBI::dbExistsTable(con, "schema_migrations")) {
+    if (close_con) close_db_connection(con)
+    return(0)
+  }
+  
+  # Get max version
+  result <- DBI::dbGetQuery(con, "SELECT MAX(version) as version FROM schema_migrations")
+  version <- ifelse(is.na(result$version[1]), 0, result$version[1])
+  
+  if (close_con) close_db_connection(con)
+  return(version)
+}
+
+#' Extract version number from migration filename
+extract_version_from_filename <- function(filename) {
+  # Extract number from beginning of filename (e.g., "001_initial_schema.sql" -> 1)
+  basename_file <- basename(filename)
+  version_match <- regmatches(basename_file, regexpr("^\\d+", basename_file))
+  if (length(version_match) > 0) {
+    return(as.integer(version_match))
+  }
+  return(NA)
+}
+
+#' Development reminder helper
+remind_migration <- function() {
+  if (Sys.getenv("R_ENV") == "development" || interactive()) {
+    message("\n⚠️  Database gewijzigd? Vergeet migration script niet!\n",
+            "   Gebruik: migrations/XXX_beschrijving.sql\n")
   }
 }
