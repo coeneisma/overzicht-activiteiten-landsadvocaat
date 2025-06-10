@@ -139,9 +139,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           },
           # Bereken looptijd (dagen vanaf aanmaak tot nu)
           looptijd = as.numeric(difftime(Sys.Date(), datum_aanmaak, units = "days")),
-          # Bereken dagen relatief tot deadline (positief = voor deadline, negatief = na deadline)
+          # Bereken dagen relatief tot deadline (negatief = voor deadline, positief = na deadline)
           tijd_tot_deadline = ifelse(!is.na(deadline), 
-            as.numeric(difftime(as.Date(deadline), Sys.Date(), units = "days")), 
+            -1 * as.numeric(difftime(as.Date(deadline), Sys.Date(), units = "days")), 
             NA_real_
           )
         ) %>%
@@ -245,9 +245,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               tijd_tot_deadline_sort = `Tijd tot Deadline`,  # Hidden sort column
               `Tijd tot Deadline` = ifelse(
                 is.na(`Tijd tot Deadline`), "-", 
-                ifelse(`Tijd tot Deadline` < 0, paste0(abs(`Tijd tot Deadline`), " dagen te laat"),
+                ifelse(`Tijd tot Deadline` > 0, paste0(`Tijd tot Deadline`, " dagen te laat"),
                   ifelse(`Tijd tot Deadline` == 0, "Vandaag", 
-                    ifelse(`Tijd tot Deadline` > 0, paste0(`Tijd tot Deadline`, " dagen"), "-")
+                    ifelse(`Tijd tot Deadline` < 0, paste0(abs(`Tijd tot Deadline`), " dagen"), "-")
                   )
                 )
               )
@@ -562,13 +562,13 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           } else if (value == "-") {
             dagen_tot_deadline <- NA
           } else if (grepl("dagen te laat", value)) {
-            # Extract number - negative means after deadline (days past)
-            nums <- as.numeric(gsub("([0-9]+).*", "\\1", value))
-            if (!is.na(nums)) dagen_tot_deadline <- -nums
-          } else if (grepl("^[0-9]+ dagen$", value)) {
-            # Extract number - positive means before deadline (days remaining)
+            # Extract number - positive means after deadline (days past)
             nums <- as.numeric(gsub("([0-9]+).*", "\\1", value))
             if (!is.na(nums)) dagen_tot_deadline <- nums
+          } else if (grepl("^[0-9]+ dagen$", value)) {
+            # Extract number - negative means before deadline (days remaining)
+            nums <- as.numeric(gsub("([0-9]+).*", "\\1", value))
+            if (!is.na(nums)) dagen_tot_deadline <- -nums
           }
           
           # Find matching color configuration
