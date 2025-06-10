@@ -734,12 +734,30 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             div(class = "col-md-6",
                 strong("Rechtsgebied: "), ifelse(is.na(zaak_data$rechtsgebied), "-", get_weergave_naam("rechtsgebied", zaak_data$rechtsgebied)), br(),
                 strong("Advocaat: "), ifelse(is.na(zaak_data$advocaat), "-", zaak_data$advocaat), br(),
-                strong("Kantoor: "), ifelse(is.na(zaak_data$adv_kantoor), "-", zaak_data$adv_kantoor)
+                strong("Kantoor: "), ifelse(is.na(zaak_data$adv_kantoor), "-", zaak_data$adv_kantoor), br(),
+                strong("Kantoor Contactpersoon: "), ifelse(is.na(zaak_data$adv_kantoor_contactpersoon), "-", zaak_data$adv_kantoor_contactpersoon), br(),
+                strong("Advies Vertegenw. Bestuursrecht: "), ifelse(is.na(zaak_data$advies_vertegenw_bestuursR), "-", zaak_data$advies_vertegenw_bestuursR)
             )
           ),
           
           h5("Zaakaanduiding", class = "border-bottom pb-2 mb-3"),
           p(ifelse(is.na(zaak_data$zaakaanduiding), "Geen zaakaanduiding", zaak_data$zaakaanduiding)),
+          
+          h5("Juridische Classificatie", class = "border-bottom pb-2 mb-3"),
+          
+          div(
+            class = "row mb-2",
+            div(class = "col-md-6",
+                strong("Type Procedure: "), ifelse(is.na(zaak_data$type_procedure), "-", zaak_data$type_procedure), br(),
+                strong("Hoedanigheid Partij: "), ifelse(is.na(zaak_data$hoedanigheid_partij), "-", get_weergave_naam_cached("hoedanigheid_partij", zaak_data$hoedanigheid_partij)), br(),
+                strong("Type Wederpartij: "), ifelse(is.na(zaak_data$type_wederpartij), "-", get_weergave_naam_cached("type_wederpartij", zaak_data$type_wederpartij)), br(),
+                strong("Reden Inzet: "), ifelse(is.na(zaak_data$reden_inzet), "-", get_weergave_naam_cached("reden_inzet", zaak_data$reden_inzet))
+            ),
+            div(class = "col-md-6",
+                strong("Civiel/Bestuursrecht: "), ifelse(is.na(zaak_data$civiel_bestuursrecht), "-", zaak_data$civiel_bestuursrecht), br(),
+                strong("Aansprakelijkheid: "), ifelse(is.na(zaak_data$aansprakelijkheid), "-", zaak_data$aansprakelijkheid)
+            )
+          ),
           
           h5("Financiële Informatie", class = "border-bottom pb-2 mb-3"),
           
@@ -787,7 +805,20 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               h5("Opmerkingen", class = "border-bottom pb-2 mb-3"),
               p(zaak_data$opmerkingen)
             )
-          }
+          },
+          
+          h5("Metadata", class = "border-bottom pb-2 mb-3"),
+          
+          div(
+            class = "row mb-2",
+            div(class = "col-md-6",
+                strong("Aangemaakt door: "), ifelse(is.na(zaak_data$aangemaakt_door), "-", zaak_data$aangemaakt_door), br(),
+                strong("Gewijzigd door: "), ifelse(is.na(zaak_data$gewijzigd_door), "-", zaak_data$gewijzigd_door)
+            ),
+            div(class = "col-md-6",
+                strong("Laatst gewijzigd: "), ifelse(is.na(zaak_data$laatst_gewijzigd), "-", format(as.POSIXct(zaak_data$laatst_gewijzigd), "%d-%m-%Y %H:%M"))
+            )
+          )
         ),
         
         # Modal footer
@@ -825,7 +856,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         size = "l",
         easyClose = FALSE,
         
-        # Form content (same as new case but pre-filled)
+        # Form content with sectioned layout
         div(
           # Form validation messages area
           div(
@@ -833,7 +864,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             style = "min-height: 20px;"
           ),
           
-          # Edit form with pre-filled values
+          # 1. Basisinformatie
+          h5("1. Basisinformatie", class = "border-bottom pb-2 mb-3"),
+          
           div(
             class = "row",
             
@@ -879,6 +912,18 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                     icon = icon("times")
                   )
                 )
+              )
+            ),
+            
+            # Right column
+            div(
+              class = "col-md-6",
+              
+              selectInput(
+                session$ns("edit_form_status_zaak"),
+                "Status: *",
+                choices = c("Selecteer..." = "", dropdown_choices$status_zaak),
+                selected = ifelse(is.na(zaak_data$status_zaak), "", zaak_data$status_zaak)
               ),
               
               textInput(
@@ -904,9 +949,16 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 "Contactpersoon:",
                 value = ifelse(is.na(zaak_data$contactpersoon), "", zaak_data$contactpersoon)
               )
-            ),
+            )
+          ),
+          
+          # 2. Juridische Classificatie
+          h5("2. Juridische Classificatie", class = "border-bottom pb-2 mb-3 mt-4"),
+          
+          div(
+            class = "row",
             
-            # Right column
+            # Left column
             div(
               class = "col-md-6",
               
@@ -926,18 +978,23 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               ),
               
               selectInput(
-                session$ns("edit_form_status_zaak"),
-                "Status: *",
-                choices = c("Selecteer..." = "", dropdown_choices$status_zaak),
-                selected = ifelse(is.na(zaak_data$status_zaak), "", zaak_data$status_zaak)
-              ),
-              
-              selectInput(
                 session$ns("edit_form_type_procedure"),
                 "Type Procedure:",
                 choices = c("Selecteer..." = "", dropdown_choices$type_procedure),
                 selected = ifelse(is.na(zaak_data$type_procedure), "", zaak_data$type_procedure)
               ),
+              
+              selectInput(
+                session$ns("edit_form_civiel_bestuursrecht"),
+                "Civiel/Bestuursrecht:",
+                choices = c("Selecteer..." = "", dropdown_choices$civiel_bestuursrecht),
+                selected = ifelse(is.na(zaak_data$civiel_bestuursrecht), "", zaak_data$civiel_bestuursrecht)
+              )
+            ),
+            
+            # Right column
+            div(
+              class = "col-md-6",
               
               selectInput(
                 session$ns("edit_form_hoedanigheid_partij"),
@@ -961,18 +1018,23 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               ),
               
               selectInput(
-                session$ns("edit_form_civiel_bestuursrecht"),
-                "Civiel/Bestuursrecht:",
-                choices = c("Selecteer..." = "", dropdown_choices$civiel_bestuursrecht),
-                selected = ifelse(is.na(zaak_data$civiel_bestuursrecht), "", zaak_data$civiel_bestuursrecht)
-              ),
-              
-              selectInput(
                 session$ns("edit_form_aansprakelijkheid"),
                 "Aansprakelijkheid:",
                 choices = c("Selecteer..." = "", dropdown_choices$aansprakelijkheid),
                 selected = ifelse(is.na(zaak_data$aansprakelijkheid), "", zaak_data$aansprakelijkheid)
-              ),
+              )
+            )
+          ),
+          
+          # 3. Advocatuur
+          h5("3. Advocatuur", class = "border-bottom pb-2 mb-3 mt-4"),
+          
+          div(
+            class = "row",
+            
+            # Left column
+            div(
+              class = "col-md-6",
               
               textInput(
                 session$ns("edit_form_advocaat"),
@@ -986,7 +1048,12 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 "Advocatenkantoor:",
                 value = ifelse(is.na(zaak_data$adv_kantoor), "", zaak_data$adv_kantoor),
                 placeholder = "Naam van het kantoor"
-              ),
+              )
+            ),
+            
+            # Right column
+            div(
+              class = "col-md-6",
               
               textInput(
                 session$ns("edit_form_adv_kantoor_contactpersoon"),
@@ -1004,9 +1071,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             )
           ),
           
-          # Omschrijving - formulier-breed
+          # 4. Zaakaanduiding
+          h5("4. Zaakaanduiding", class = "border-bottom pb-2 mb-3 mt-4"),
+          
           div(
-            class = "row mt-3",
+            class = "row",
             
             div(
               class = "col-12",
@@ -1014,16 +1083,15 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 session$ns("edit_form_zaakaanduiding"),
                 "Zaakaanduiding:",
                 value = ifelse(is.na(zaak_data$zaakaanduiding), "", zaak_data$zaakaanduiding),
-                rows = 3
+                rows = 3,
+                placeholder = "Korte aanduiding van de zaak..."
               )
             )
           ),
           
-          # Optional fields section
-          hr(),
-          h6("Optionele Velden", class = "text-muted"),
+          # 5. Financiële Informatie
+          h5("5. Financiële Informatie", class = "border-bottom pb-2 mb-3 mt-4"),
           
-          # Financiële velden
           div(
             class = "row",
             
@@ -1061,8 +1129,23 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             )
           ),
           
-          # Administratieve velden
-          h6("Administratieve Gegevens", class = "text-muted mt-3"),
+          div(
+            class = "row mt-2",
+            
+            div(
+              class = "col-12",
+              textAreaInput(
+                session$ns("edit_form_budget_beleid"),
+                "Advocaat Budget Beleid:",
+                value = ifelse(is.na(zaak_data$budget_beleid), "", zaak_data$budget_beleid),
+                rows = 2,
+                placeholder = "Beleidsinformatie over budget en advocaat inzet..."
+              )
+            )
+          ),
+          
+          # 6. Administratieve Gegevens
+          h5("6. Administratieve Gegevens", class = "border-bottom pb-2 mb-3 mt-4"),
           
           div(
             class = "row",
@@ -1136,24 +1219,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             )
           ),
           
-          # Budget beleid tekstveld
-          div(
-            class = "row mt-2",
-            
-            div(
-              class = "col-12",
-              textAreaInput(
-                session$ns("edit_form_budget_beleid"),
-                "Advocaat Budget Beleid:",
-                value = ifelse(is.na(zaak_data$budget_beleid), "", zaak_data$budget_beleid),
-                rows = 2,
-                placeholder = "Beleidsinformatie over budget en advocaat inzet..."
-              )
-            )
-          ),
+          # 7. Opmerkingen
+          h5("7. Opmerkingen", class = "border-bottom pb-2 mb-3 mt-4"),
           
           div(
-            class = "row mt-3",
+            class = "row",
             
             div(
               class = "col-12",
@@ -1161,12 +1231,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 session$ns("edit_form_opmerkingen"),
                 "Opmerkingen:",
                 value = ifelse(is.na(zaak_data$opmerkingen), "", zaak_data$opmerkingen),
-                rows = 2
+                rows = 2,
+                placeholder = "Aanvullende opmerkingen over deze zaak..."
               )
             )
-          ),
-          
-          # Note: Original zaak_id is stored in reactive value
+          )
         ),
         
         # Modal footer
@@ -1217,7 +1286,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             style = "min-height: 20px;"
           ),
           
-          # Simple form with essential fields only
+          # 1. Basisinformatie
+          h5("1. Basisinformatie", class = "border-bottom pb-2 mb-3"),
+          
           div(
             class = "row",
             
@@ -1257,6 +1328,17 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                     icon = icon("times")
                   )
                 )
+              )
+            ),
+            
+            # Right column
+            div(
+              class = "col-md-6",
+              
+              selectInput(
+                session$ns("form_status_zaak"),
+                "Status: *",
+                choices = c("Selecteer..." = "", dropdown_choices$status_zaak)
               ),
               
               textInput(
@@ -1281,9 +1363,16 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 "Contactpersoon:",
                 placeholder = "Naam van de contactpersoon"
               )
-            ),
+            )
+          ),
+          
+          # 2. Juridische Classificatie
+          h5("2. Juridische Classificatie", class = "border-bottom pb-2 mb-3 mt-4"),
+          
+          div(
+            class = "row",
             
-            # Right column
+            # Left column
             div(
               class = "col-md-6",
               
@@ -1301,16 +1390,21 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               ),
               
               selectInput(
-                session$ns("form_status_zaak"),
-                "Status: *",
-                choices = c("Selecteer..." = "", dropdown_choices$status_zaak)
-              ),
-              
-              selectInput(
                 session$ns("form_type_procedure"),
                 "Type Procedure:",
                 choices = c("Selecteer..." = "", dropdown_choices$type_procedure)
               ),
+              
+              selectInput(
+                session$ns("form_civiel_bestuursrecht"),
+                "Civiel/Bestuursrecht:",
+                choices = c("Selecteer..." = "", dropdown_choices$civiel_bestuursrecht)
+              )
+            ),
+            
+            # Right column
+            div(
+              class = "col-md-6",
               
               selectInput(
                 session$ns("form_hoedanigheid_partij"),
@@ -1331,16 +1425,22 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               ),
               
               selectInput(
-                session$ns("form_civiel_bestuursrecht"),
-                "Civiel/Bestuursrecht:",
-                choices = c("Selecteer..." = "", dropdown_choices$civiel_bestuursrecht)
-              ),
-              
-              selectInput(
                 session$ns("form_aansprakelijkheid"),
                 "Aansprakelijkheid:",
                 choices = c("Selecteer..." = "", dropdown_choices$aansprakelijkheid)
-              ),
+              )
+            )
+          ),
+          
+          # 3. Advocatuur
+          h5("3. Advocatuur", class = "border-bottom pb-2 mb-3 mt-4"),
+          
+          div(
+            class = "row",
+            
+            # Left column
+            div(
+              class = "col-md-6",
               
               textInput(
                 session$ns("form_advocaat"),
@@ -1352,7 +1452,12 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 session$ns("form_adv_kantoor"),
                 "Advocatenkantoor:",
                 placeholder = "Naam van het kantoor"
-              ),
+              )
+            ),
+            
+            # Right column
+            div(
+              class = "col-md-6",
               
               textInput(
                 session$ns("form_adv_kantoor_contactpersoon"),
@@ -1368,9 +1473,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             )
           ),
           
-          # Omschrijving - formulier-breed
+          # 4. Zaakaanduiding
+          h5("4. Zaakaanduiding", class = "border-bottom pb-2 mb-3 mt-4"),
+          
           div(
-            class = "row mt-3",
+            class = "row",
             
             div(
               class = "col-12",
@@ -1383,11 +1490,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             )
           ),
           
-          # Optional fields section
-          hr(),
-          h6("Optionele Velden", class = "text-muted"),
+          # 5. Financiële Informatie
+          h5("5. Financiële Informatie", class = "border-bottom pb-2 mb-3 mt-4"),
           
-          # Financiële velden
           div(
             class = "row",
             
@@ -1425,8 +1530,22 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             )
           ),
           
-          # Administratieve velden
-          h6("Administratieve Gegevens", class = "text-muted mt-3"),
+          div(
+            class = "row mt-2",
+            
+            div(
+              class = "col-12",
+              textAreaInput(
+                session$ns("form_budget_beleid"),
+                "Advocaat Budget Beleid:",
+                rows = 2,
+                placeholder = "Beleidsinformatie over budget en advocaat inzet..."
+              )
+            )
+          ),
+          
+          # 6. Administratieve Gegevens
+          h5("6. Administratieve Gegevens", class = "border-bottom pb-2 mb-3 mt-4"),
           
           div(
             class = "row",
@@ -1494,23 +1613,11 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             )
           ),
           
-          # Budget beleid tekstveld
-          div(
-            class = "row mt-2",
-            
-            div(
-              class = "col-12",
-              textAreaInput(
-                session$ns("form_budget_beleid"),
-                "Advocaat Budget Beleid:",
-                rows = 2,
-                placeholder = "Beleidsinformatie over budget en advocaat inzet..."
-              )
-            )
-          ),
+          # 7. Opmerkingen
+          h5("7. Opmerkingen", class = "border-bottom pb-2 mb-3 mt-4"),
           
           div(
-            class = "row mt-3",
+            class = "row",
             
             div(
               class = "col-12",
