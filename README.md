@@ -148,7 +148,17 @@ shiny::runApp()
 # Volg 5-stappen wizard voor import
 ```
 
-5. **Verifieer deployment**
+5. **Database permissions (Shiny Server)**
+```bash
+# Zorg dat Shiny Server schrijfrechten heeft op database
+chmod 666 data/landsadvocaat.db
+chmod 777 data/
+
+# Inclusief SQLite WAL files
+chmod 666 data/landsadvocaat.db*
+```
+
+6. **Verifieer deployment**
 - Login werkt (admin/admin123)
 - Alle dropdown waarden aanwezig
 - Deadline kleuren actief
@@ -183,6 +193,29 @@ shiny::runApp()
 - **Development Work**: Gebruik `development` branch
 - **Feature Development**: Gebruik feature branches, merge naar development
 - **Releases**: Merge development naar main voor deployment
+
+#### Troubleshooting Server Deployment
+
+**Database Permission Errors**
+```bash
+# Fix "readonly database" errors
+chmod 666 data/landsadvocaat.db
+chmod 777 data/
+chmod 666 data/landsadvocaat.db*  # SQLite WAL files
+```
+
+**Shiny Server Cache Issues**
+```bash
+# Clear app-level cache (geen admin rechten nodig)
+rm -rf .RData .Rhistory
+rm -rf renv/.cache/*
+touch restart.txt
+```
+
+**Login Fails but Database Exists**
+- Check database permissions (zie boven)
+- Verifieer working directory met debug output
+- Test database connectie in R console
 
 ## 💾 Database Structuur
 
