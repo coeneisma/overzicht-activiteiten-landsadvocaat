@@ -1,0 +1,106 @@
+# Geëxporteerde database configuratie
+# Gegenereerd op: 2025-06-10 10:08:50.696922
+# =====================================
+
+DROPDOWN_CATEGORIES <- list(
+  list(categorie = 'aansprakelijkheid', naam_nl = 'Aansprakelijkheid', beschrijving = 'Aansprakelijkheidspositie', verplicht = 0),
+  list(categorie = 'aanvragende_directie', naam_nl = 'Aanvragende Directie', beschrijving = 'Directie die de zaak heeft aangevraagd', verplicht = 1),
+  list(categorie = 'civiel_bestuursrecht', naam_nl = 'Civiel/Bestuursrecht', beschrijving = 'Civielrechtelijk of bestuursrechtelijk', verplicht = 1),
+  list(categorie = 'hoedanigheid_partij', naam_nl = 'Hoedanigheid Partij', beschrijving = 'Rol van het ministerie in de procedure', verplicht = 1),
+  list(categorie = 'rechtsgebied', naam_nl = 'Rechtsgebied', beschrijving = 'Rechtsgebied van de zaak', verplicht = 1),
+  list(categorie = 'reden_inzet', naam_nl = 'Reden Inzet', beschrijving = 'Reden voor inzet landsadvocaat', verplicht = 1),
+  list(categorie = 'status_zaak', naam_nl = 'Status Zaak', beschrijving = 'Huidige status van de zaak', verplicht = 1),
+  list(categorie = 'type_dienst', naam_nl = 'Type Dienst', beschrijving = 'Soort dienstverlening door landsadvocaat', verplicht = 1),
+  list(categorie = 'type_procedure', naam_nl = 'Type Procedure', beschrijving = 'Type juridische procedure', verplicht = 1),
+  list(categorie = 'type_wederpartij', naam_nl = 'Type Wederpartij', beschrijving = 'Type tegenpartij in de zaak', verplicht = 0)
+)
+
+DROPDOWN_OPTIES <- list(
+  list(categorie = 'aansprakelijkheid', waarde = 'Aansprakelijk', weergave_naam = 'Aansprakelijkheid aanwezig', volgorde = 1, kleur = NULL, actief = 1),
+  list(categorie = 'aansprakelijkheid', waarde = 'Niet_aansprakelijk', weergave_naam = 'Geen aansprakelijkheid', volgorde = 2, kleur = NULL, actief = 1),
+  list(categorie = 'aansprakelijkheid', waarde = 'Onduidelijk', weergave_naam = 'Aansprakelijkheid onduidelijk', volgorde = 3, kleur = NULL, actief = 1),
+  list(categorie = 'aansprakelijkheid', waarde = 'Nvt', weergave_naam = 'Niet van toepassing', volgorde = 4, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'bestuursondersteuningenadvies', weergave_naam = 'Bestuursondersteuning en Advies', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'communicatie', weergave_naam = 'Communicatie', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'kennisstrategie', weergave_naam = 'Kennis & Strategie', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'directiei', weergave_naam = 'Directie-I', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'wetgevingenjuridischezaken', weergave_naam = 'Wetgeving en Juridische Zaken', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'organisatieenbedrijfsvoering', weergave_naam = 'Organisatie en Bedrijfsvoering', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'onderwijspersoneelenprimaironderwijs', weergave_naam = 'Onderwijspersoneel en Primair Onderwijs', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'onderwijsprestatiesenvoortgezetonderwijs', weergave_naam = 'Onderwijsprestaties en Voortgezet Onderwijs', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'kansengelijkheidenonderwijsondersteuning', weergave_naam = 'Kansengelijkheid en Onderwijsondersteuning', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'programmadirectiemaatschappelijkediensttijd', weergave_naam = 'Programmadirectie Maatschappelijke Diensttijd', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'hogeronderwijsenstudiefinanciering', weergave_naam = 'Hoger Onderwijs en Studiefinanciering', volgorde = 0, kleur = '#FFC107', actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'middelbaarberoepsonderwijs', weergave_naam = 'Middelbaar Beroepsonderwijs', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'onderzoekenwetenschapsbeleid', weergave_naam = 'Onderzoek en Wetenschapsbeleid', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'emancipatie', weergave_naam = 'Emancipatie', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'erfgoedenkunsten', weergave_naam = 'Erfgoed en Kunsten', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'mediaencreatieveindustrie', weergave_naam = 'Media en Creatieve Industrie', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'internationaalbeleid', weergave_naam = 'Internationaal Beleid', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'financieeleconomischezaken', weergave_naam = 'Financieel- Economische Zaken', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'ondersteunendbureauonderwijsraad', weergave_naam = 'Ondersteunend bureau Onderwijsraad', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'ondersteunendbureaucollegevoortoetsenenexamens', weergave_naam = 'Ondersteunend bureau College voor Toetsen en Examens', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'ondersteunendbureauadviesraadvoorwetenschaptechnologieeninnovatie', weergave_naam = 'Ondersteunend bureau Adviesraad voor Wetenschap, Technologie en Innovatie', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'ondersteunendbureauraadvancultuur', weergave_naam = 'Ondersteunend bureau Raad van Cultuur', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'ondersteunendbureaunederlandseunescocommissie', weergave_naam = 'Ondersteunend bureau Nederlandse Unesco Commissie', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'dienstuitvoeringonderwijs', weergave_naam = 'Dienst Uitvoering Onderwijs', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'inspectievanhetonderwijs', weergave_naam = 'Inspectie van het Onderwijs', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'aanvragende_directie', waarde = 'inspectieoverheidsinformatieenerfgoed', weergave_naam = 'Inspectie Overheidsinformatie en Erfgoed', volgorde = 0, kleur = NULL, actief = 1),
+  list(categorie = 'civiel_bestuursrecht', waarde = 'Civiel', weergave_naam = 'Civielrechtelijk', volgorde = 1, kleur = NULL, actief = 1),
+  list(categorie = 'civiel_bestuursrecht', waarde = 'Bestuursrecht', weergave_naam = 'Bestuursrechtelijk', volgorde = 2, kleur = NULL, actief = 1),
+  list(categorie = 'civiel_bestuursrecht', waarde = 'Beide', weergave_naam = 'Beide', volgorde = 3, kleur = NULL, actief = 1),
+  list(categorie = 'civiel_bestuursrecht', waarde = 'Nvt', weergave_naam = 'Niet van toepassing', volgorde = 4, kleur = NULL, actief = 1),
+  list(categorie = 'hoedanigheid_partij', waarde = 'Eiser', weergave_naam = 'Eiser', volgorde = 1, kleur = NULL, actief = 1),
+  list(categorie = 'hoedanigheid_partij', waarde = 'Verweerder', weergave_naam = 'Verweerder', volgorde = 2, kleur = NULL, actief = 1),
+  list(categorie = 'hoedanigheid_partij', waarde = 'Derde_belanghebbende', weergave_naam = 'Derde belanghebbende', volgorde = 3, kleur = NULL, actief = 1),
+  list(categorie = 'hoedanigheid_partij', waarde = 'Intervenient', weergave_naam = 'Interveniënt', volgorde = 4, kleur = NULL, actief = 1),
+  list(categorie = 'hoedanigheid_partij', waarde = 'Anders', weergave_naam = 'Overige hoedanigheid', volgorde = 5, kleur = NULL, actief = 1),
+  list(categorie = 'rechtsgebied', waarde = 'Staatsrecht', weergave_naam = 'Staatsrecht', volgorde = 1, kleur = NULL, actief = 1),
+  list(categorie = 'rechtsgebied', waarde = 'Bestuursrecht', weergave_naam = 'Bestuursrecht', volgorde = 2, kleur = NULL, actief = 1),
+  list(categorie = 'rechtsgebied', waarde = 'Civielrecht', weergave_naam = 'Civiel recht', volgorde = 3, kleur = NULL, actief = 1),
+  list(categorie = 'rechtsgebied', waarde = 'Strafrecht', weergave_naam = 'Strafrecht', volgorde = 4, kleur = NULL, actief = 1),
+  list(categorie = 'rechtsgebied', waarde = 'Europees_recht', weergave_naam = 'Europees recht', volgorde = 5, kleur = NULL, actief = 1),
+  list(categorie = 'rechtsgebied', waarde = 'Internationaal_recht', weergave_naam = 'Internationaal recht', volgorde = 6, kleur = NULL, actief = 1),
+  list(categorie = 'rechtsgebied', waarde = 'Arbeidsrecht', weergave_naam = 'Arbeidsrecht', volgorde = 7, kleur = '#17A2B8', actief = 1),
+  list(categorie = 'rechtsgebied', waarde = 'Anders', weergave_naam = 'Overig rechtsgebied', volgorde = 8, kleur = NULL, actief = 1),
+  list(categorie = 'reden_inzet', waarde = 'Complexiteit', weergave_naam = 'Complexe rechtsvraag', volgorde = 1, kleur = NULL, actief = 1),
+  list(categorie = 'reden_inzet', waarde = 'Capaciteit', weergave_naam = 'Capaciteitsgebrek', volgorde = 2, kleur = NULL, actief = 1),
+  list(categorie = 'reden_inzet', waarde = 'Specialisme', weergave_naam = 'Specialistische kennis vereist', volgorde = 3, kleur = NULL, actief = 1),
+  list(categorie = 'reden_inzet', waarde = 'Strategisch', weergave_naam = 'Strategisch belang', volgorde = 4, kleur = NULL, actief = 1),
+  list(categorie = 'reden_inzet', waarde = 'Precedentwerking', weergave_naam = 'Precedentwerking', volgorde = 5, kleur = NULL, actief = 1),
+  list(categorie = 'reden_inzet', waarde = 'Anders', weergave_naam = 'Overige reden', volgorde = 6, kleur = NULL, actief = 1),
+  list(categorie = 'status_zaak', waarde = 'Lopend', weergave_naam = 'Lopend', volgorde = 1, kleur = '#28A745', actief = 1),
+  list(categorie = 'status_zaak', waarde = 'In_behandeling', weergave_naam = 'In behandeling', volgorde = 2, kleur = NULL, actief = 1),
+  list(categorie = 'status_zaak', waarde = 'Afgerond', weergave_naam = 'Afgerond', volgorde = 3, kleur = NULL, actief = 1),
+  list(categorie = 'status_zaak', waarde = 'On_hold', weergave_naam = 'On hold', volgorde = 4, kleur = NULL, actief = 1),
+  list(categorie = 'type_dienst', waarde = 'Advies', weergave_naam = 'Juridisch advies', volgorde = 1, kleur = NULL, actief = 1),
+  list(categorie = 'type_dienst', waarde = 'Vertegenwoordiging', weergave_naam = 'Procesvertegenwoordiging', volgorde = 2, kleur = NULL, actief = 1),
+  list(categorie = 'type_dienst', waarde = 'Beide', weergave_naam = 'Advies en vertegenwoordiging', volgorde = 3, kleur = NULL, actief = 1),
+  list(categorie = 'type_dienst', waarde = 'Anders', weergave_naam = 'Overig', volgorde = 4, kleur = NULL, actief = 1),
+  list(categorie = 'type_procedure', waarde = 'Civiel', weergave_naam = 'Civiele procedure', volgorde = 1, kleur = NULL, actief = 1),
+  list(categorie = 'type_procedure', waarde = 'Bestuursrecht', weergave_naam = 'Bestuursrechtelijke procedure', volgorde = 2, kleur = NULL, actief = 1),
+  list(categorie = 'type_procedure', waarde = 'Strafrecht', weergave_naam = 'Strafrechtelijke procedure', volgorde = 3, kleur = NULL, actief = 1),
+  list(categorie = 'type_procedure', waarde = 'Europees', weergave_naam = 'Europese procedure', volgorde = 4, kleur = NULL, actief = 1),
+  list(categorie = 'type_procedure', waarde = 'Arbitrage', weergave_naam = 'Arbitrageprocedure', volgorde = 5, kleur = NULL, actief = 1),
+  list(categorie = 'type_procedure', waarde = 'Anders', weergave_naam = 'Overige procedure', volgorde = 6, kleur = NULL, actief = 1),
+  list(categorie = 'type_wederpartij', waarde = 'Burger', weergave_naam = 'Particuliere burger', volgorde = 1, kleur = NULL, actief = 1),
+  list(categorie = 'type_wederpartij', waarde = 'Bedrijf', weergave_naam = 'Bedrijf/onderneming', volgorde = 2, kleur = NULL, actief = 1),
+  list(categorie = 'type_wederpartij', waarde = 'Andere_overheid', weergave_naam = 'Andere overheidsinstantie', volgorde = 3, kleur = NULL, actief = 1),
+  list(categorie = 'type_wederpartij', waarde = 'Internationale_organisatie', weergave_naam = 'Internationale organisatie', volgorde = 4, kleur = NULL, actief = 1),
+  list(categorie = 'type_wederpartij', waarde = 'Belangenorganisatie', weergave_naam = 'Belangenorganisatie', volgorde = 5, kleur = NULL, actief = 1),
+  list(categorie = 'type_wederpartij', waarde = 'Anders', weergave_naam = 'Overige wederpartij', volgorde = 6, kleur = NULL, actief = 1)
+)
+
+DEADLINE_KLEUREN <- list(
+  list(dagen_voor = 1, dagen_tot = NULL, beschrijving = 'Te laat', kleur = '#DC3545', actief = 1),
+  list(dagen_voor = 0, dagen_tot = 0, beschrijving = 'Vandaag', kleur = '#08DEFF', actief = 1),
+  list(dagen_voor = -7, dagen_tot = -1, beschrijving = 'Binnen een week', kleur = '#FD7E14', actief = 1),
+  list(dagen_voor = -27, dagen_tot = -8, beschrijving = '1 tot 4 weken', kleur = '#F0DEA3', actief = 1),
+  list(dagen_voor = NULL, dagen_tot = -28, beschrijving = 'Langer dan 4 weken', kleur = '#E7F2E1', actief = 1)
+)
+
+GEBRUIKERS <- list(
+  list(gebruikersnaam = 'admin', wachtwoord_hash = '1b396327a447a151e4f2b647ab1a093589297247a97aeb7897fd292e6022c99d', volledige_naam = 'Administrator', email = 'admin@ocw.nl', rol = 'admin', actief = 1),
+  list(gebruikersnaam = 'test', wachtwoord_hash = 'c323039c2f7a1646e0de633d0c243303860b64f14b1eda005d26ea27e7a92839', volledige_naam = 'Test Gebruiker', email = 'test@ocw.nl', rol = 'gebruiker', actief = 1)
+)
+

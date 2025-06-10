@@ -95,45 +95,94 @@ Het systeem gebruikt een abstractielaag in `utils/database.R` met:
 - Performance-geoptimaliseerde queries met caching
 - Type-safe database operaties via dbplyr
 
-## 🚀 Installatie & Setup
+## 🚀 Deployment & Setup
 
-### Vereisten
+### Voor Production Server Deployment
+
+**BELANGRIJKE NOTE:** Deployment gebeurt op de `main` branch. De development branch wordt gemerged naar main voor releases.
+
+#### Vereisten
 - R versie 4.0 of hoger
-- RStudio (aanbevolen)
+- RStudio Server of Shiny Server
 - SQLite3
+- Git
 
-### Installatie Stappen
+#### Deployment Stappen
 
-1. **Clone repository**
+1. **Clone repository (main branch)**
 ```bash
 git clone [repository-url]
 cd overzicht-activiteiten-landsadvocaat
+# Main branch wordt automatisch gebruikt
 ```
 
 2. **Installeer packages via renv**
 ```r
+# Start R in project directory
 # Herstel exacte package versies
 renv::restore()
 ```
 
-3. **Database setup**
+3. **Database setup (GEAUTOMATISEERD)**
 ```r
-# Eerste keer setup
-source("setup/initial_data.R")
-complete_database_setup_fixed()
+# Voer VOLLEDIGE setup uit - één commando:
+source("setup/deployment_setup.R")
+setup_production_database()
 
-# Dit creëert:
-# - Database structuur
-# - Standaard gebruikers (admin/admin123, test/test123)
-# - Dropdown opties
-# - Standaard deadline kleuren
+# Dit voert automatisch uit:
+# ✅ Database schema via migrations
+# ✅ Alle dropdown categorieën en waarden (75 items)
+# ✅ Deadline kleuren configuratie (5 ranges)
+# ✅ Gebruikers: admin/admin123, test/test123
+# ✅ Database indexes voor performance
 ```
 
-4. **Start applicatie**
+4. **Data Import**
 ```r
+# Start applicatie
 shiny::runApp()
-# Of klik "Run App" in RStudio
+
+# Log in als admin (admin/admin123)
+# Ga naar "Bulk Upload" module
+# Upload Excel bestand met zaakgegevens
+# Volg 5-stappen wizard voor import
 ```
+
+5. **Verifieer deployment**
+- Login werkt (admin/admin123)
+- Alle dropdown waarden aanwezig
+- Deadline kleuren actief
+- Excel upload functioneert
+
+#### Development Setup (Local)
+
+Voor lokale development:
+
+```r
+# 1. Package setup
+renv::restore()
+
+# 2. Database setup
+source("setup/deployment_setup.R")
+setup_production_database()
+
+# 3. Start app
+shiny::runApp()
+```
+
+#### Belangrijke Files voor Deployment
+
+- `migrations/001_initial_schema.sql` - Database schema
+- `setup/deployment_setup.R` - Complete automated setup
+- `renv.lock` - Exacte package versies
+- `CLAUDE.md` - Development guidance
+
+#### Branch Management
+
+- **Production Deployment**: Gebruik `main` branch
+- **Development Work**: Gebruik `development` branch
+- **Feature Development**: Gebruik feature branches, merge naar development
+- **Releases**: Merge development naar main voor deployment
 
 ## 💾 Database Structuur
 
