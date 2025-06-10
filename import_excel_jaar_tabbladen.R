@@ -294,7 +294,7 @@ import_jaar_sheet_uitgebreid <- function(con, sheet_name, status = "lopend") {
       
       # Insert zaak met directies
       directies_voor_zaak <- if (!is.na(directie_info$directie)) list(directie_info$directie) else NULL
-      voeg_zaak_toe(insert_data, "excel_import", directies = directies_voor_zaak)
+      voeg_zaak_toe(insert_data, "admin", directies = directies_voor_zaak)
       
       success_count <- success_count + 1
       

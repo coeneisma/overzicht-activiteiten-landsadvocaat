@@ -445,8 +445,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
             DT::formatStyle(
               "Status",
               backgroundColor = DT::styleEqual(weergave_values, color_values),
-              color = "black",
-              fontWeight = "bold"
+              color = "black"
             )
         }
       }
@@ -861,7 +860,13 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 dateInput(
                   session$ns("edit_form_deadline"),
                   "Deadline:",
-                  value = if (!is.na(zaak_data$deadline)) as.Date(zaak_data$deadline) else NA,
+                  value = tryCatch({
+                    if (is.null(zaak_data$deadline) || is.na(zaak_data$deadline) || zaak_data$deadline == "") {
+                      NA
+                    } else {
+                      as.Date(zaak_data$deadline)
+                    }
+                  }, error = function(e) NA),
                   format = "dd-mm-yyyy",
                   language = "nl"
                 ),

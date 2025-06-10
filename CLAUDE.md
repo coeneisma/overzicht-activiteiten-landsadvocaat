@@ -23,13 +23,16 @@ shiny::runApp()
 
 ### Database Setup
 ```r
-# Initial setup (run once)
-source("setup/initial_data.R")
-complete_database_setup_fixed()
+# Production deployment (run once)
+source("setup/deployment_setup.R")
+setup_production_database()
 
-# Test connection
-source("utils/database.R")
-con <- get_db_connection()
+# This automatically sets up:
+# - Database schema via migrations
+# - All dropdown values (73 items)
+# - Deadline color configuration (5 ranges)
+# - Users: admin/admin123, test/test123
+# - Performance indexes
 ```
 
 ### Package Management
@@ -171,7 +174,8 @@ Migration naming: `XXX_description.sql` (e.g., `002_add_deadline_column.sql`)
 
 ## Current Status
 
-**Branch**: feature/ui-improvements
+**Production Branch**: main
+**Development Branch**: development
 
 **Production Ready Features**:
 - Complete CRUD operations

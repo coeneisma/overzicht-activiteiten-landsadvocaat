@@ -30,7 +30,6 @@ CREATE TABLE dropdown_opties (
       FOREIGN KEY (categorie) REFERENCES dropdown_categories(categorie),
       UNIQUE(categorie, waarde)
     );
-CREATE TABLE sqlite_sequence(name,seq);
 CREATE TABLE gebruikers (
       gebruiker_id INTEGER PRIMARY KEY AUTOINCREMENT,
       gebruikersnaam TEXT UNIQUE NOT NULL,
