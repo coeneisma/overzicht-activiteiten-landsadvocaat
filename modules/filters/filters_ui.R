@@ -72,7 +72,7 @@ filters_ui <- function(id) {
           icon("search"), " Zoeken",
           class = "fw-bold"
         ),
-        placeholder = "Zoek in zaak ID, zaakaanduiding...",
+        placeholder = "Zoek in alle velden...",
         width = "100%"
       )
     ),
@@ -358,6 +358,19 @@ filters_ui <- function(id) {
             width = "100%"
           )
         ),
+        
+        # Aansprakelijkheid
+        div(
+          class = "mb-3",
+          selectInput(
+            ns("aansprakelijkheid"),
+            "Aansprakelijkheid:",
+            choices = c("Alle" = "", "JA" = "JA", "NEE" = "NEE", "Geen waarde" = "__NA__"),
+            selected = "",
+            multiple = FALSE,
+            width = "100%"
+          )
+        )
         
       )
     ),

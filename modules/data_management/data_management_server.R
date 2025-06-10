@@ -139,7 +139,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           },
           # Bereken looptijd (dagen vanaf aanmaak tot nu)
           looptijd = as.numeric(difftime(Sys.Date(), datum_aanmaak, units = "days")),
-          # Bereken dagen relatief tot deadline (negatief = voor deadline, positief = na deadline)
+          # Bereken dagen relatief tot deadline (positief = voor deadline, negatief = na deadline)
           tijd_tot_deadline = ifelse(!is.na(deadline), 
             as.numeric(difftime(as.Date(deadline), Sys.Date(), units = "days")), 
             NA_real_
@@ -211,35 +211,47 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       if (nrow(result_data) > 0) {
         kolom_namen <- names(result_data)
         
-        # Datum formatting
+        # Datum formatting - keep original for sorting, add formatted for display
         if ("Datum Aanmaak" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(`Datum Aanmaak` = format_date_nl(`Datum Aanmaak`))
+            mutate(
+              datum_aanmaak_sort = as.numeric(as.Date(`Datum Aanmaak`)),  # Hidden sort column
+              `Datum Aanmaak` = format_date_nl(`Datum Aanmaak`)
+            )
         }
         
-        # Deadline formatting
+        # Deadline formatting - keep original for sorting, add formatted for display
         if ("Deadline" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(Deadline = ifelse(is.na(Deadline), "-", format_date_nl(as.Date(Deadline))))
+            mutate(
+              deadline_sort = ifelse(is.na(Deadline), NA_real_, as.numeric(as.Date(Deadline))),  # Hidden sort column
+              Deadline = ifelse(is.na(Deadline), "-", format_date_nl(as.Date(Deadline)))
+            )
         }
         
-        # Looptijd formatting
+        # Looptijd formatting - keep original for sorting, add formatted for display
         if ("Looptijd (dagen)" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(`Looptijd (dagen)` = paste0(`Looptijd (dagen)`, " dagen"))
+            mutate(
+              looptijd_sort = `Looptijd (dagen)`,  # Hidden sort column
+              `Looptijd (dagen)` = paste0(`Looptijd (dagen)`, " dagen")
+            )
         }
         
-        # Tijd tot deadline formatting
+        # Tijd tot deadline formatting - keep original for sorting, add formatted for display
         if ("Tijd tot Deadline" %in% kolom_namen) {
           result_data <- result_data %>%
-            mutate(`Tijd tot Deadline` = ifelse(
-              is.na(`Tijd tot Deadline`), "-", 
-              ifelse(`Tijd tot Deadline` < 0, paste0(abs(`Tijd tot Deadline`), " dagen te laat"),
-                ifelse(`Tijd tot Deadline` == 0, "Vandaag", 
-                  ifelse(`Tijd tot Deadline` > 0, paste0(`Tijd tot Deadline`, " dagen"), "-")
+            mutate(
+              tijd_tot_deadline_sort = `Tijd tot Deadline`,  # Hidden sort column
+              `Tijd tot Deadline` = ifelse(
+                is.na(`Tijd tot Deadline`), "-", 
+                ifelse(`Tijd tot Deadline` < 0, paste0(abs(`Tijd tot Deadline`), " dagen te laat"),
+                  ifelse(`Tijd tot Deadline` == 0, "Vandaag", 
+                    ifelse(`Tijd tot Deadline` > 0, paste0(`Tijd tot Deadline`, " dagen"), "-")
+                  )
                 )
               )
-            ))
+            )
         }
         
         # Convert database values to display names (OPTIMIZED - bulk conversion)
@@ -315,6 +327,68 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
       # Get colors for all dropdown categories
       alle_kleuren <- get_dropdown_kleuren()
       
+      # Define column types for proper sorting
+      column_defs <- list(
+        list(className = "dt-left", targets = "_all")  # Left align all columns
+      )
+      
+      # Find column indices for special sorting (0-based for DataTables)
+      col_names <- names(display_data)
+      hidden_columns <- c()  # Track hidden sort columns
+      
+      for (i in 1:length(col_names)) {
+        col_name <- col_names[i]
+        
+        # Hide sort columns
+        if (col_name %in% c("datum_aanmaak_sort", "deadline_sort", "looptijd_sort", "tijd_tot_deadline_sort")) {
+          hidden_columns <- c(hidden_columns, i - 1)  # Track for hiding
+        }
+        # Use hidden columns for sorting display columns
+        else if (col_name == "Datum Aanmaak" && "datum_aanmaak_sort" %in% col_names) {
+          sort_col_index <- which(col_names == "datum_aanmaak_sort") - 1
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # Display column index
+            orderData = sort_col_index  # Sort using hidden column
+          )
+        }
+        else if (col_name == "Deadline" && "deadline_sort" %in% col_names) {
+          sort_col_index <- which(col_names == "deadline_sort") - 1
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # Display column index
+            orderData = sort_col_index  # Sort using hidden column
+          )
+        }
+        else if (col_name == "Looptijd (dagen)" && "looptijd_sort" %in% col_names) {
+          sort_col_index <- which(col_names == "looptijd_sort") - 1
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # Display column index
+            orderData = sort_col_index  # Sort using hidden column
+          )
+        }
+        else if (col_name == "Tijd tot Deadline" && "tijd_tot_deadline_sort" %in% col_names) {
+          sort_col_index <- which(col_names == "tijd_tot_deadline_sort") - 1
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # Display column index
+            orderData = sort_col_index  # Sort using hidden column
+          )
+        }
+        # Numeric columns should sort as numbers
+        else if (col_name %in% c("Budget WJZ (€)", "Budget Andere Directie (€)", "Financieel Risico (€)")) {
+          column_defs[[length(column_defs) + 1]] <- list(
+            targets = i - 1,  # 0-based index
+            type = "num"
+          )
+        }
+      }
+      
+      # Hide sort columns
+      if (length(hidden_columns) > 0) {
+        column_defs[[length(column_defs) + 1]] <- list(
+          targets = hidden_columns,
+          visible = FALSE
+        )
+      }
+      
       # Create DataTable with background colors
       dt <- DT::datatable(
         display_data,
@@ -325,9 +399,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           scrollX = TRUE,
           autoWidth = FALSE,
           dom = 'frtip',  # Simple layout: filter, table, info, pagination
-          columnDefs = list(
-            list(className = "dt-left", targets = "_all")  # Left align all columns
-          ),
+          columnDefs = column_defs,
           language = list(
             search = "Zoeken:",
             lengthMenu = "Toon _MENU_ items per pagina",
@@ -521,7 +593,7 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 } else {
                   text_kleur <- "black"
                 }
-                font_weight <- "bold"
+                font_weight <- "normal"
                 break
               }
             }
@@ -609,7 +681,15 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
         dropdown_choices$status_zaak <- get_dropdown_opties("status_zaak", exclude_fallback = TRUE)
         dropdown_choices$aanvragende_directie <- get_dropdown_opties("aanvragende_directie", exclude_fallback = TRUE)
         
-        cli_alert_success("Dropdown choices refreshed for form")
+        # Nieuwe juridische dropdown categorieën
+        dropdown_choices$type_procedure <- get_dropdown_opties("type_procedure", exclude_fallback = TRUE)
+        dropdown_choices$hoedanigheid_partij <- get_dropdown_opties("hoedanigheid_partij", exclude_fallback = TRUE)
+        dropdown_choices$type_wederpartij <- get_dropdown_opties("type_wederpartij", exclude_fallback = TRUE)
+        dropdown_choices$reden_inzet <- get_dropdown_opties("reden_inzet", exclude_fallback = TRUE)
+        dropdown_choices$civiel_bestuursrecht <- get_dropdown_opties("civiel_bestuursrecht", exclude_fallback = TRUE)
+        dropdown_choices$aansprakelijkheid <- get_dropdown_opties("aansprakelijkheid", exclude_fallback = TRUE)
+        
+        cli_alert_success("Dropdown choices refreshed for form (including new categories)")
         
       }, error = function(e) {
         cli_alert_danger("Error loading dropdown choices: {e$message}")
@@ -847,6 +927,48 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 selected = ifelse(is.na(zaak_data$status_zaak), "", zaak_data$status_zaak)
               ),
               
+              selectInput(
+                session$ns("edit_form_type_procedure"),
+                "Type Procedure:",
+                choices = c("Selecteer..." = "", dropdown_choices$type_procedure),
+                selected = ifelse(is.na(zaak_data$type_procedure), "", zaak_data$type_procedure)
+              ),
+              
+              selectInput(
+                session$ns("edit_form_hoedanigheid_partij"),
+                "Hoedanigheid Partij:",
+                choices = c("Selecteer..." = "", dropdown_choices$hoedanigheid_partij),
+                selected = ifelse(is.na(zaak_data$hoedanigheid_partij), "", zaak_data$hoedanigheid_partij)
+              ),
+              
+              selectInput(
+                session$ns("edit_form_type_wederpartij"),
+                "Type Wederpartij:",
+                choices = c("Selecteer..." = "", dropdown_choices$type_wederpartij),
+                selected = ifelse(is.na(zaak_data$type_wederpartij), "", zaak_data$type_wederpartij)
+              ),
+              
+              selectInput(
+                session$ns("edit_form_reden_inzet"),
+                "Reden Inzet:",
+                choices = c("Selecteer..." = "", dropdown_choices$reden_inzet),
+                selected = ifelse(is.na(zaak_data$reden_inzet), "", zaak_data$reden_inzet)
+              ),
+              
+              selectInput(
+                session$ns("edit_form_civiel_bestuursrecht"),
+                "Civiel/Bestuursrecht:",
+                choices = c("Selecteer..." = "", dropdown_choices$civiel_bestuursrecht),
+                selected = ifelse(is.na(zaak_data$civiel_bestuursrecht), "", zaak_data$civiel_bestuursrecht)
+              ),
+              
+              selectInput(
+                session$ns("edit_form_aansprakelijkheid"),
+                "Aansprakelijkheid:",
+                choices = c("Selecteer..." = "", dropdown_choices$aansprakelijkheid),
+                selected = ifelse(is.na(zaak_data$aansprakelijkheid), "", zaak_data$aansprakelijkheid)
+              ),
+              
               textInput(
                 session$ns("edit_form_advocaat"),
                 "Advocaat:",
@@ -859,6 +981,20 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 "Advocatenkantoor:",
                 value = ifelse(is.na(zaak_data$adv_kantoor), "", zaak_data$adv_kantoor),
                 placeholder = "Naam van het kantoor"
+              ),
+              
+              textInput(
+                session$ns("edit_form_adv_kantoor_contactpersoon"),
+                "Advocatenkantoor Contactpersoon:",
+                value = ifelse(is.na(zaak_data$adv_kantoor_contactpersoon), "", zaak_data$adv_kantoor_contactpersoon),
+                placeholder = "Contactpersoon bij kantoor"
+              ),
+              
+              textInput(
+                session$ns("edit_form_advies_vertegenw_bestuursR"),
+                "Advies Vertegenwoordiging Bestuursrecht:",
+                value = ifelse(is.na(zaak_data$advies_vertegenw_bestuursR), "", zaak_data$advies_vertegenw_bestuursR),
+                placeholder = "Advies betreffende vertegenwoordiging"
               )
             )
           ),
@@ -1165,6 +1301,42 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 choices = c("Selecteer..." = "", dropdown_choices$status_zaak)
               ),
               
+              selectInput(
+                session$ns("form_type_procedure"),
+                "Type Procedure:",
+                choices = c("Selecteer..." = "", dropdown_choices$type_procedure)
+              ),
+              
+              selectInput(
+                session$ns("form_hoedanigheid_partij"),
+                "Hoedanigheid Partij:",
+                choices = c("Selecteer..." = "", dropdown_choices$hoedanigheid_partij)
+              ),
+              
+              selectInput(
+                session$ns("form_type_wederpartij"),
+                "Type Wederpartij:",
+                choices = c("Selecteer..." = "", dropdown_choices$type_wederpartij)
+              ),
+              
+              selectInput(
+                session$ns("form_reden_inzet"),
+                "Reden Inzet:",
+                choices = c("Selecteer..." = "", dropdown_choices$reden_inzet)
+              ),
+              
+              selectInput(
+                session$ns("form_civiel_bestuursrecht"),
+                "Civiel/Bestuursrecht:",
+                choices = c("Selecteer..." = "", dropdown_choices$civiel_bestuursrecht)
+              ),
+              
+              selectInput(
+                session$ns("form_aansprakelijkheid"),
+                "Aansprakelijkheid:",
+                choices = c("Selecteer..." = "", dropdown_choices$aansprakelijkheid)
+              ),
+              
               textInput(
                 session$ns("form_advocaat"),
                 "Advocaat:",
@@ -1175,6 +1347,18 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
                 session$ns("form_adv_kantoor"),
                 "Advocatenkantoor:",
                 placeholder = "Naam van het kantoor"
+              ),
+              
+              textInput(
+                session$ns("form_adv_kantoor_contactpersoon"),
+                "Advocatenkantoor Contactpersoon:",
+                placeholder = "Contactpersoon bij kantoor"
+              ),
+              
+              textInput(
+                session$ns("form_advies_vertegenw_bestuursR"),
+                "Advies Vertegenwoordiging Bestuursrecht:",
+                placeholder = "Advies betreffende vertegenwoordiging"
               )
             )
           ),
@@ -1427,21 +1611,50 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               Looptijd = as.numeric(difftime(Sys.Date(), datum_aanmaak, units = "days"))
             ) %>%
             select(
+              # Basis identificatie velden
               "Zaak ID" = zaak_id,
               "Datum Aanmaak" = datum_aanmaak,
               "Deadline" = deadline,
               "Looptijd (dagen)" = Looptijd,
               "Zaakaanduiding" = zaakaanduiding,
+              
+              # Juridische classificatie
               "Type Dienst" = type_dienst,
+              "Type Procedure" = type_procedure,
               "Rechtsgebied" = rechtsgebied,
+              "Hoedanigheid Partij" = hoedanigheid_partij,
+              "Type Wederpartij" = type_wederpartij,
+              "Reden Inzet" = reden_inzet,
+              "Aansprakelijkheid" = aansprakelijkheid,
               "Status" = status_zaak,
+              
+              # Directie en contactgegevens
               "Aanvragende Directie" = `Aanvragende Directie`,
+              "ProZa-link" = proza_link,
+              "WJZ MT Lid" = wjz_mt_lid,
+              "Contactpersoon" = contactpersoon,
+              
+              # Advocatuur
               "Advocaat" = advocaat,
               "Advocatenkantoor" = adv_kantoor,
+              "Advocatenkantoor Contactpersoon" = adv_kantoor_contactpersoon,
+              "Advies Vertegenwoordiging Bestuursrecht" = advies_vertegenw_bestuursR,
+              
+              # Financiële gegevens
               "Budget WJZ (€)" = la_budget_wjz,
               "Budget Andere Directie (€)" = budget_andere_directie,
+              "Kostenplaats" = kostenplaats,
+              "Intern Ordernummer" = intern_ordernummer,
+              "Grootboekrekening" = grootboekrekening,
+              "Budgetcode" = budgetcode,
               "Financieel Risico (€)" = financieel_risico,
+              "Budget Beleid" = budget_beleid,
+              
+              # Administratieve gegevens
+              "Locatie Formulier" = locatie_formulier,
               "Opmerkingen" = opmerkingen,
+              
+              # Metadata
               "Aangemaakt Door" = aangemaakt_door,
               "Laatst Gewijzigd" = laatst_gewijzigd,
               "Gewijzigd Door" = gewijzigd_door
@@ -1459,6 +1672,9 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               # Convert database values to display names for readability
               `Type Dienst` = sapply(`Type Dienst`, function(x) if(is.na(x)) "" else get_weergave_naam("type_dienst", x)),
               Rechtsgebied = sapply(Rechtsgebied, function(x) if(is.na(x)) "" else get_weergave_naam("rechtsgebied", x)),
+              `Hoedanigheid Partij` = sapply(`Hoedanigheid Partij`, function(x) if(is.na(x)) "" else get_weergave_naam("hoedanigheid_partij", x)),
+              `Type Wederpartij` = sapply(`Type Wederpartij`, function(x) if(is.na(x)) "" else get_weergave_naam("type_wederpartij", x)),
+              `Reden Inzet` = sapply(`Reden Inzet`, function(x) if(is.na(x)) "" else get_weergave_naam("reden_inzet", x)),
               Status = sapply(Status, function(x) if(is.na(x)) "" else get_weergave_naam("status_zaak", x)),
               
               # Format currency values
@@ -1466,9 +1682,22 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
               `Budget Andere Directie (€)` = ifelse(is.na(`Budget Andere Directie (€)`) | `Budget Andere Directie (€)` == 0, "", as.numeric(`Budget Andere Directie (€)`)),
               `Financieel Risico (€)` = ifelse(is.na(`Financieel Risico (€)`) | `Financieel Risico (€)` == 0, "", as.numeric(`Financieel Risico (€)`)),
               
-              # Clean up other fields
+              # Clean up text fields
+              `Type Procedure` = ifelse(is.na(`Type Procedure`), "", `Type Procedure`),
+              Aansprakelijkheid = ifelse(is.na(Aansprakelijkheid), "", Aansprakelijkheid),
+              `ProZa-link` = ifelse(is.na(`ProZa-link`), "", `ProZa-link`),
+              `WJZ MT Lid` = ifelse(is.na(`WJZ MT Lid`), "", `WJZ MT Lid`),
+              Contactpersoon = ifelse(is.na(Contactpersoon), "", Contactpersoon),
               Advocaat = ifelse(is.na(Advocaat), "", Advocaat),
               Advocatenkantoor = ifelse(is.na(Advocatenkantoor), "", Advocatenkantoor),
+              `Advocatenkantoor Contactpersoon` = ifelse(is.na(`Advocatenkantoor Contactpersoon`), "", `Advocatenkantoor Contactpersoon`),
+              `Advies Vertegenwoordiging Bestuursrecht` = ifelse(is.na(`Advies Vertegenwoordiging Bestuursrecht`), "", `Advies Vertegenwoordiging Bestuursrecht`),
+              Kostenplaats = ifelse(is.na(Kostenplaats), "", Kostenplaats),
+              `Intern Ordernummer` = ifelse(is.na(`Intern Ordernummer`), "", `Intern Ordernummer`),
+              Grootboekrekening = ifelse(is.na(Grootboekrekening), "", Grootboekrekening),
+              Budgetcode = ifelse(is.na(Budgetcode), "", Budgetcode),
+              `Budget Beleid` = ifelse(is.na(`Budget Beleid`), "", `Budget Beleid`),
+              `Locatie Formulier` = ifelse(is.na(`Locatie Formulier`), "", `Locatie Formulier`),
               Opmerkingen = ifelse(is.na(Opmerkingen), "", Opmerkingen),
               `Aangemaakt Door` = ifelse(is.na(`Aangemaakt Door`), "", `Aangemaakt Door`),
               `Gewijzigd Door` = ifelse(is.na(`Gewijzigd Door`), "", `Gewijzigd Door`)
@@ -1726,8 +1955,19 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           type_dienst = if(is.null(input$edit_form_type_dienst) || input$edit_form_type_dienst == "") NA else input$edit_form_type_dienst,
           rechtsgebied = if(is.null(input$edit_form_rechtsgebied) || input$edit_form_rechtsgebied == "") NA else input$edit_form_rechtsgebied,
           status_zaak = input$edit_form_status_zaak,
+          
+          # Nieuwe juridische dropdown velden
+          type_procedure = if(is.null(input$edit_form_type_procedure) || input$edit_form_type_procedure == "") NA else input$edit_form_type_procedure,
+          hoedanigheid_partij = if(is.null(input$edit_form_hoedanigheid_partij) || input$edit_form_hoedanigheid_partij == "") NA else input$edit_form_hoedanigheid_partij,
+          type_wederpartij = if(is.null(input$edit_form_type_wederpartij) || input$edit_form_type_wederpartij == "") NA else input$edit_form_type_wederpartij,
+          reden_inzet = if(is.null(input$edit_form_reden_inzet) || input$edit_form_reden_inzet == "") NA else input$edit_form_reden_inzet,
+          civiel_bestuursrecht = if(is.null(input$edit_form_civiel_bestuursrecht) || input$edit_form_civiel_bestuursrecht == "") NA else input$edit_form_civiel_bestuursrecht,
+          aansprakelijkheid = if(is.null(input$edit_form_aansprakelijkheid) || input$edit_form_aansprakelijkheid == "") NA else input$edit_form_aansprakelijkheid,
+          
           advocaat = if(is.null(input$edit_form_advocaat) || input$edit_form_advocaat == "" || trimws(input$edit_form_advocaat) == "") NA else trimws(input$edit_form_advocaat),
           adv_kantoor = if(is.null(input$edit_form_adv_kantoor) || input$edit_form_adv_kantoor == "" || trimws(input$edit_form_adv_kantoor) == "") NA else trimws(input$edit_form_adv_kantoor),
+          adv_kantoor_contactpersoon = if(is.null(input$edit_form_adv_kantoor_contactpersoon) || input$edit_form_adv_kantoor_contactpersoon == "" || trimws(input$edit_form_adv_kantoor_contactpersoon) == "") NA else trimws(input$edit_form_adv_kantoor_contactpersoon),
+          advies_vertegenw_bestuursR = if(is.null(input$edit_form_advies_vertegenw_bestuursR) || input$edit_form_advies_vertegenw_bestuursR == "" || trimws(input$edit_form_advies_vertegenw_bestuursR) == "") NA else trimws(input$edit_form_advies_vertegenw_bestuursR),
           la_budget_wjz = if(is.null(input$edit_form_la_budget_wjz)) 0 else input$edit_form_la_budget_wjz,
           budget_andere_directie = if(is.null(input$edit_form_budget_andere_directie)) 0 else input$edit_form_budget_andere_directie,
           financieel_risico = if(is.null(input$edit_form_financieel_risico)) 0 else input$edit_form_financieel_risico,
@@ -1869,8 +2109,19 @@ data_management_server <- function(id, filtered_data, raw_data, data_refresh_tri
           type_dienst = if(is.null(input$form_type_dienst) || input$form_type_dienst == "") NA else input$form_type_dienst,
           rechtsgebied = if(is.null(input$form_rechtsgebied) || input$form_rechtsgebied == "") NA else input$form_rechtsgebied,
           status_zaak = input$form_status_zaak,
+          
+          # Nieuwe juridische dropdown velden
+          type_procedure = if(is.null(input$form_type_procedure) || input$form_type_procedure == "") NA else input$form_type_procedure,
+          hoedanigheid_partij = if(is.null(input$form_hoedanigheid_partij) || input$form_hoedanigheid_partij == "") NA else input$form_hoedanigheid_partij,
+          type_wederpartij = if(is.null(input$form_type_wederpartij) || input$form_type_wederpartij == "") NA else input$form_type_wederpartij,
+          reden_inzet = if(is.null(input$form_reden_inzet) || input$form_reden_inzet == "") NA else input$form_reden_inzet,
+          civiel_bestuursrecht = if(is.null(input$form_civiel_bestuursrecht) || input$form_civiel_bestuursrecht == "") NA else input$form_civiel_bestuursrecht,
+          aansprakelijkheid = if(is.null(input$form_aansprakelijkheid) || input$form_aansprakelijkheid == "") NA else input$form_aansprakelijkheid,
+          
           advocaat = if(is.null(input$form_advocaat) || input$form_advocaat == "" || trimws(input$form_advocaat) == "") NA else trimws(input$form_advocaat),
           adv_kantoor = if(is.null(input$form_adv_kantoor) || input$form_adv_kantoor == "" || trimws(input$form_adv_kantoor) == "") NA else trimws(input$form_adv_kantoor),
+          adv_kantoor_contactpersoon = if(is.null(input$form_adv_kantoor_contactpersoon) || input$form_adv_kantoor_contactpersoon == "" || trimws(input$form_adv_kantoor_contactpersoon) == "") NA else trimws(input$form_adv_kantoor_contactpersoon),
+          advies_vertegenw_bestuursR = if(is.null(input$form_advies_vertegenw_bestuursR) || input$form_advies_vertegenw_bestuursR == "" || trimws(input$form_advies_vertegenw_bestuursR) == "") NA else trimws(input$form_advies_vertegenw_bestuursR),
           la_budget_wjz = if(is.null(input$form_la_budget_wjz)) 0 else input$form_la_budget_wjz,
           budget_andere_directie = if(is.null(input$form_budget_andere_directie)) 0 else input$form_budget_andere_directie,
           financieel_risico = if(is.null(input$form_financieel_risico)) 0 else input$form_financieel_risico,
