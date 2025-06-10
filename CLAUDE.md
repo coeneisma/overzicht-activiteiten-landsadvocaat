@@ -196,3 +196,13 @@ Migration naming: `XXX_description.sql` (e.g., `002_add_deadline_column.sql`)
 - Maintain Dutch language throughout
 - Follow existing code patterns
 - No AI attribution in commits
+
+## TODO Features
+
+### Authentication & Access Control
+- [ ] **Bezoeker rol implementeren**: Voeg 'bezoeker' gebruikersrol toe naast admin/gebruiker
+  - Bezoeker heeft dezelfde view rechten als gebruiker maar kan geen data wijzigen
+  - Verberg/disable 'Nieuwe Zaak' en 'Bewerken' knoppen voor bezoekers
+  - Verberg 'Bulk Upload' tabblad of toon toegang geweigerd melding
+  - Voeg toegangscontrole toe aan alle CRUD operaties
+  - Update gebruikersbeheersysteem om bezoeker rol te ondersteunen
